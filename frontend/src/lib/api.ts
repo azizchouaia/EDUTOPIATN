@@ -1,6 +1,8 @@
 import axios from "axios"
 
-const API_ORIGIN = "http://localhost:5000"
+// Set VITE_API_URL in frontend/.env (e.g. http://localhost:5000 for dev,
+// https://api.edutopia.example.com for production).
+const API_ORIGIN = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:5000"
 
 const api = axios.create({
   baseURL: `${API_ORIGIN}/api`,
@@ -28,6 +30,8 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+export { API_ORIGIN }
 
 export function assetUrl(pathname: string | null | undefined) {
   if (!pathname) return null

@@ -4,6 +4,7 @@ const ctrl      = require('../controllers/marketController');
 const auth      = require('../middleware/auth');
 const authorize = require('../middleware/roles');
 const { isHttpUrl } = require('../utils/validation');
+const { checkoutLimiter } = require('../middleware/rateLimit');
 
 const productCreateValidators = [
   body('name').trim().isLength({ min: 3 }).withMessage('Le nom du produit doit contenir au moins 3 caracteres.'),
@@ -54,6 +55,7 @@ router.get('/products',         auth, ctrl.getProducts);
 router.get('/orders',           auth, ctrl.getMyOrders);
 router.get('/orders/all',       auth, authorize('admin'), ctrl.getAllOrders);
 router.put('/orders/:id/status', auth, authorize('admin'), [body('status').isIn(['pending', 'paid', 'cancelled', 'refunded']).withMessage('Le statut de commande est invalide.')], ctrl.updateOrderStatus);
+router.delete('/orders/:id',    auth, ctrl.deleteOrder);
 router.get('/promo-codes',      auth, authorize('admin'), ctrl.getPromoCodes);
 router.post('/validate-promo',  auth, ctrl.validatePromo);
 
@@ -75,11 +77,12 @@ router.delete('/promo-codes/:id', auth, authorize('admin'), ctrl.removePromoCode
 
 router.post('/orders',
   auth,
+  checkoutLimiter,
   [
     body('items').isArray({ min: 1 }).withMessage('Ajoutez au moins un article a la commande.'),
     body('items.*.product_id').isInt({ min: 1 }).withMessage('Chaque article doit contenir un produit valide.'),
     body('items.*.quantity').isInt({ min: 1 }).withMessage('La quantite de chaque article doit etre superieure ou egale a 1.'),
-    body('payment_method').isIn(['cash_on_delivery', 'card', 'bank_transfer']).withMessage('Le mode de paiement est invalide.'),
+    body('payment_method').isIn(['cash_on_delivery', 'bank_transfer']).withMessage('Le mode de paiement est invalide.'),
     body('delivery.full_name').trim().isLength({ min: 3 }).withMessage('Le nom complet de livraison est obligatoire.'),
     body('delivery.phone').trim().matches(/^\+?[0-9 ]{8,15}$/).withMessage('Le numero de telephone est invalide.'),
     body('delivery.address').trim().isLength({ min: 8 }).withMessage('L\'adresse de livraison doit contenir au moins 8 caracteres.'),

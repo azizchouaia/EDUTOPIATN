@@ -1,0 +1,425 @@
+%% =====================================================================
+%% Edutopia Academy — UML Class Diagram
+%% Generated from backend/database.sql + backend/migrations/*.sql
+%% =====================================================================
+classDiagram
+
+%% ---------------------------------------------------------------
+%% 1. USERS & IDENTITY
+%% ---------------------------------------------------------------
+class User {
+  +int id
+  +string first_name
+  +string last_name
+  +int age
+  +string email
+  +string password_hash
+  +UserRole role
+  +string college
+  +string year_of_study
+  +SchoolCycle school_cycle
+  +string grade_code
+  +string section_code
+  +string avatar_url
+  +boolean is_active
+  +datetime created_at
+}
+class UserRole <<enumeration>> {
+  admin
+  teacher
+  student
+  parent
+}
+class SchoolCycle <<enumeration>> {
+  college
+  lycee
+}
+
+class ParentStudentLink {
+  +int id
+  +int parent_id
+  +int student_id
+  +RelationType relation_type
+  +boolean is_active
+  +datetime created_at
+}
+class RelationType <<enumeration>> {
+  parent
+  mother
+  father
+  guardian
+}
+
+%% ---------------------------------------------------------------
+%% 2. COURSES (teacher-authored)
+%% ---------------------------------------------------------------
+class Course {
+  +int id
+  +string title
+  +string description
+  +int teacher_id
+  +string category
+  +decimal price
+  +decimal duration_hours
+  +int lessons_count
+  +string cover_image
+  +boolean is_published
+  +datetime created_at
+}
+
+class CourseChapter {
+  +int id
+  +int course_id
+  +string title
+  +string slug
+  +string description
+  +int display_order
+  +boolean is_published
+}
+
+class CourseResource {
+  +int id
+  +int chapter_id
+  +ResourceType resource_type
+  +string title
+  +string description
+  +string file_url
+  +string external_url
+  +int duration_minutes
+  +int display_order
+  +boolean is_published
+}
+class ResourceType <<enumeration>> {
+  pdf_lesson
+  video_lesson
+  exercise_sheet
+  correction_sheet
+  extra_resource
+}
+
+class Enrollment {
+  +int id
+  +int student_id
+  +int course_id
+  +int progress
+  +boolean completed
+  +datetime enrolled_at
+}
+
+%% ---------------------------------------------------------------
+%% 3. ACADEMIC CURRICULUM (track-based, free Bac/college content)
+%% ---------------------------------------------------------------
+class AcademicTrack {
+  +int id
+  +SchoolCycle school_cycle
+  +string grade_code
+  +string section_code
+  +string slug
+  +string title
+  +string description
+  +boolean is_active
+  +int display_order
+}
+
+class Subject {
+  +int id
+  +string name
+  +string slug
+  +string description
+  +string icon
+  +string color
+  +boolean is_active
+}
+
+class TrackSubject {
+  +int id
+  +int academic_track_id
+  +int subject_id
+  +string description
+  +string cover_image
+  +int display_order
+  +boolean is_published
+}
+
+class Chapter {
+  +int id
+  +int track_subject_id
+  +string title
+  +string slug
+  +string description
+  +int display_order
+  +boolean is_published
+  +int created_by
+}
+
+class ChapterResource {
+  +int id
+  +int chapter_id
+  +ResourceType resource_type
+  +string title
+  +string description
+  +string file_url
+  +string external_url
+  +int duration_minutes
+  +int display_order
+  +boolean is_published
+}
+
+class StudentResourceProgress {
+  +int id
+  +int student_id
+  +int resource_id
+  +datetime completed_at
+}
+
+class TeacherSubjectAssignment {
+  +int id
+  +int teacher_id
+  +int track_subject_id
+  +int assigned_by
+  +datetime assigned_at
+}
+
+%% ---------------------------------------------------------------
+%% 4. LIVE EVENTS
+%% ---------------------------------------------------------------
+class Event {
+  +int id
+  +string title
+  +string description
+  +int host_id
+  +string category
+  +DeliveryType delivery_type
+  +string access_url
+  +datetime event_date
+  +int seats_total
+  +int seats_taken
+  +boolean is_cancelled
+  +datetime created_at
+}
+class DeliveryType <<enumeration>> {
+  google_meet
+  video
+}
+
+class EventRegistration {
+  +int id
+  +int user_id
+  +int event_id
+  +datetime registered_at
+}
+
+%% ---------------------------------------------------------------
+%% 5. MARKETPLACE
+%% ---------------------------------------------------------------
+class Product {
+  +int id
+  +string name
+  +string description
+  +decimal price
+  +string category
+  +ProductTag tag
+  +int stock
+  +string image_url
+  +boolean is_active
+  +datetime created_at
+}
+class ProductTag <<enumeration>> {
+  none
+  bestseller
+  new
+  limited
+  promo
+}
+
+class PromoCode {
+  +int id
+  +string code
+  +int discount_percent
+  +int product_id
+  +int max_uses
+  +int used_count
+  +datetime expires_at
+  +boolean is_active
+  +datetime created_at
+}
+
+class Order {
+  +int id
+  +int user_id
+  +int promo_code_id
+  +decimal total_amount
+  +PaymentMethod payment_method
+  +string delivery_full_name
+  +string delivery_phone
+  +string delivery_address
+  +string delivery_city
+  +string delivery_postal_code
+  +string delivery_notes
+  +OrderStatus status
+  +datetime created_at
+}
+class PaymentMethod <<enumeration>> {
+  cash_on_delivery
+  card
+  bank_transfer
+}
+class OrderStatus <<enumeration>> {
+  pending
+  paid
+  cancelled
+  refunded
+}
+
+class OrderItem {
+  +int id
+  +int order_id
+  +int product_id
+  +int quantity
+  +decimal unit_price
+}
+
+%% ---------------------------------------------------------------
+%% 6. SUBSCRIPTIONS
+%% ---------------------------------------------------------------
+class Subscription {
+  +int id
+  +int user_id
+  +PlanSlug plan
+  +BillingCycle billing_cycle
+  +decimal price_paid
+  +SubPaymentMethod payment_method
+  +SubscriptionStatus status
+  +string bank_receipt_path
+  +string bank_receipt_original_name
+  +datetime receipt_uploaded_at
+  +string activation_code_hash
+  +string activation_code_preview
+  +datetime activation_code_expires_at
+  +int approved_by
+  +datetime approved_at
+  +datetime activated_at
+  +date start_date
+  +date end_date
+  +datetime created_at
+}
+class PlanSlug <<enumeration>> {
+  basic
+  premium
+  enterprise
+}
+class BillingCycle <<enumeration>> {
+  1_month
+  3_months
+  1_year
+}
+class SubPaymentMethod <<enumeration>> {
+  online
+  bank_transfer
+}
+class SubscriptionStatus <<enumeration>> {
+  pending_receipt
+  pending_approval
+  pending_code
+  active
+  expired
+  cancelled
+}
+
+class SubscriptionPlan {
+  +int id
+  +PlanSlug slug
+  +string title
+  +string title_arabic
+  +string description
+  +json features_json
+  +json features_arabic_json
+  +decimal monthly_price
+  +decimal quarterly_price
+  +decimal yearly_price
+  +boolean is_popular
+  +boolean is_recommended
+  +boolean is_active
+  +int display_order
+}
+
+%% ---------------------------------------------------------------
+%% 7. STATIC CONTENT / SUPPORT
+%% ---------------------------------------------------------------
+class TeamMember {
+  +int id
+  +string name
+  +string role
+  +string bio
+  +string initials
+  +string gradient_from
+  +string gradient_to
+  +string linkedin_url
+  +string github_url
+  +string email
+  +int display_order
+  +boolean is_active
+  +datetime created_at
+}
+
+class Reclamation {
+  +int id
+  +int user_id
+  +string subject
+  +string category
+  +string message
+  +ReclamationStatus status
+  +datetime created_at
+}
+class ReclamationStatus <<enumeration>> {
+  open
+  in_progress
+  resolved
+}
+
+%% =================================================================
+%% RELATIONSHIPS
+%% =================================================================
+
+%% -- Identity --
+User "1" --> "0..*" ParentStudentLink : parent
+User "1" --> "0..*" ParentStudentLink : student
+
+%% -- Courses --
+User "1" --> "0..*" Course : teaches
+User "1" --> "0..*" Enrollment : enrolls in
+Course "1" --> "0..*" Enrollment : has
+Course "1" *-- "0..*" CourseChapter : contains
+CourseChapter "1" *-- "0..*" CourseResource : contains
+
+%% -- Academic curriculum --
+AcademicTrack "1" --> "0..*" TrackSubject : offers
+Subject "1" --> "0..*" TrackSubject : taught as
+TrackSubject "1" *-- "0..*" Chapter : contains
+Chapter "1" *-- "0..*" ChapterResource : contains
+User "1" --> "0..*" StudentResourceProgress : completes
+ChapterResource "1" --> "0..*" StudentResourceProgress : tracked by
+User "1" --> "0..1" TeacherSubjectAssignment : assigned as teacher
+TrackSubject "1" --> "0..*" TeacherSubjectAssignment : assigned to
+User "1" --> "0..*" TeacherSubjectAssignment : grants (admin)
+User "0..1" --> "0..*" Chapter : authored by (teacher)
+
+%% -- Live events --
+User "1" --> "0..*" Event : hosts
+User "1" --> "0..*" EventRegistration : registers
+Event "1" --> "0..*" EventRegistration : has
+
+%% -- Marketplace --
+User "1" --> "0..*" Order : places
+Order "1" *-- "1..*" OrderItem : contains
+Product "1" --> "0..*" OrderItem : sold as
+PromoCode "0..1" --> "0..*" Order : applied to
+Product "1" --> "0..1" PromoCode : restricted by
+
+%% -- Subscriptions --
+User "1" --> "0..*" Subscription : subscribes
+User "0..1" --> "0..*" Subscription : approves (admin)
+SubscriptionPlan "1" ..> Subscription : prices
+
+%% -- Support --
+User "1" --> "0..*" Reclamation : files

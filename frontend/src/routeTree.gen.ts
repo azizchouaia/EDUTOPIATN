@@ -9,17 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TeamRouteImport } from './routes/team'
 import { Route as TeacherRouteImport } from './routes/teacher'
 import { Route as SubscriptionsRouteImport } from './routes/subscriptions'
 import { Route as ReclamationsRouteImport } from './routes/reclamations'
+import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ParentRouteImport } from './routes/parent'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as KhlayelRouteImport } from './routes/khlayel'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoursesRouteImport } from './routes/courses'
+import { Route as BacRouteImport } from './routes/bac'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CoursesIndexRouteImport } from './routes/courses.index'
@@ -29,6 +34,11 @@ import { Route as AdminModuleRouteImport } from './routes/admin.$module'
 import { Route as CoursesSubjectSlugIndexRouteImport } from './routes/courses.$subjectSlug.index'
 import { Route as CoursesSubjectSlugChapterSlugRouteImport } from './routes/courses.$subjectSlug.$chapterSlug'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -49,9 +59,19 @@ const ReclamationsRoute = ReclamationsRouteImport.update({
   path: '/reclamations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProgressRoute = ProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ParentRoute = ParentRouteImport.update({
@@ -69,6 +89,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KhlayelRoute = KhlayelRouteImport.update({
+  id: '/khlayel',
+  path: '/khlayel',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
@@ -82,6 +107,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const CoursesRoute = CoursesRouteImport.update({
   id: '/courses',
   path: '/courses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BacRoute = BacRouteImport.update({
+  id: '/bac',
+  path: '/bac',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -129,17 +159,22 @@ const CoursesSubjectSlugChapterSlugRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/bac': typeof BacRoute
   '/courses': typeof CoursesRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/khlayel': typeof KhlayelRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/parent': typeof ParentRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/progress': typeof ProgressRoute
   '/reclamations': typeof ReclamationsRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/teacher': typeof TeacherRoute
   '/team': typeof TeamRoute
+  '/terms': typeof TermsRoute
   '/admin/$module': typeof AdminModuleRoute
   '/courses/$subjectSlug': typeof CoursesSubjectSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
@@ -149,16 +184,21 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bac': typeof BacRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/khlayel': typeof KhlayelRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/parent': typeof ParentRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/progress': typeof ProgressRoute
   '/reclamations': typeof ReclamationsRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/teacher': typeof TeacherRoute
   '/team': typeof TeamRoute
+  '/terms': typeof TermsRoute
   '/admin/$module': typeof AdminModuleRoute
   '/admin': typeof AdminIndexRoute
   '/courses': typeof CoursesIndexRoute
@@ -169,17 +209,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/bac': typeof BacRoute
   '/courses': typeof CoursesRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/khlayel': typeof KhlayelRoute
   '/login': typeof LoginRoute
   '/market': typeof MarketRoute
   '/parent': typeof ParentRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/progress': typeof ProgressRoute
   '/reclamations': typeof ReclamationsRoute
   '/subscriptions': typeof SubscriptionsRoute
   '/teacher': typeof TeacherRoute
   '/team': typeof TeamRoute
+  '/terms': typeof TermsRoute
   '/admin/$module': typeof AdminModuleRoute
   '/courses/$subjectSlug': typeof CoursesSubjectSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
@@ -192,17 +237,22 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/bac'
     | '/courses'
     | '/dashboard'
     | '/events'
+    | '/khlayel'
     | '/login'
     | '/market'
     | '/parent'
+    | '/privacy'
     | '/profile'
+    | '/progress'
     | '/reclamations'
     | '/subscriptions'
     | '/teacher'
     | '/team'
+    | '/terms'
     | '/admin/$module'
     | '/courses/$subjectSlug'
     | '/admin/'
@@ -212,16 +262,21 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/bac'
     | '/dashboard'
     | '/events'
+    | '/khlayel'
     | '/login'
     | '/market'
     | '/parent'
+    | '/privacy'
     | '/profile'
+    | '/progress'
     | '/reclamations'
     | '/subscriptions'
     | '/teacher'
     | '/team'
+    | '/terms'
     | '/admin/$module'
     | '/admin'
     | '/courses'
@@ -231,17 +286,22 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/bac'
     | '/courses'
     | '/dashboard'
     | '/events'
+    | '/khlayel'
     | '/login'
     | '/market'
     | '/parent'
+    | '/privacy'
     | '/profile'
+    | '/progress'
     | '/reclamations'
     | '/subscriptions'
     | '/teacher'
     | '/team'
+    | '/terms'
     | '/admin/$module'
     | '/courses/$subjectSlug'
     | '/admin/'
@@ -253,21 +313,33 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  BacRoute: typeof BacRoute
   CoursesRoute: typeof CoursesRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
+  KhlayelRoute: typeof KhlayelRoute
   LoginRoute: typeof LoginRoute
   MarketRoute: typeof MarketRoute
   ParentRoute: typeof ParentRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
+  ProgressRoute: typeof ProgressRoute
   ReclamationsRoute: typeof ReclamationsRoute
   SubscriptionsRoute: typeof SubscriptionsRoute
   TeacherRoute: typeof TeacherRoute
   TeamRoute: typeof TeamRoute
+  TermsRoute: typeof TermsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/team': {
       id: '/team'
       path: '/team'
@@ -296,11 +368,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReclamationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/progress': {
+      id: '/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof ProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/parent': {
@@ -324,6 +410,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/khlayel': {
+      id: '/khlayel'
+      path: '/khlayel'
+      fullPath: '/khlayel'
+      preLoaderRoute: typeof KhlayelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/events': {
       id: '/events'
       path: '/events'
@@ -343,6 +436,13 @@ declare module '@tanstack/react-router' {
       path: '/courses'
       fullPath: '/courses'
       preLoaderRoute: typeof CoursesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bac': {
+      id: '/bac'
+      path: '/bac'
+      fullPath: '/bac'
+      preLoaderRoute: typeof BacRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -445,17 +545,22 @@ const CoursesRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  BacRoute: BacRoute,
   CoursesRoute: CoursesRouteWithChildren,
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
+  KhlayelRoute: KhlayelRoute,
   LoginRoute: LoginRoute,
   MarketRoute: MarketRoute,
   ParentRoute: ParentRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
+  ProgressRoute: ProgressRoute,
   ReclamationsRoute: ReclamationsRoute,
   SubscriptionsRoute: SubscriptionsRoute,
   TeacherRoute: TeacherRoute,
   TeamRoute: TeamRoute,
+  TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

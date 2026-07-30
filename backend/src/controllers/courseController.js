@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { SECTION_REQUIRED_GRADES, inferSchoolCycle } = require('../utils/academic');
 const { handleValidationErrors } = require('../utils/validation');
+const { getChapterQuizMeta } = require('./quizController');
 
 async function loadStudentTrackContext(userId) {
   const [userRows] = await db.query(
@@ -213,6 +214,42 @@ async function adminGetCurriculum(_req, res) {
   });
 }
 
+// PUT /api/courses/admin/tracks/:id
+async function adminUpdateTrack(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: 'ID invalide.' });
+
+  const { title, description, display_order, is_active } = req.body;
+  const updates = [];
+  const params  = [];
+  if (title         !== undefined) { updates.push('title = ?');         params.push(title); }
+  if (description   !== undefined) { updates.push('description = ?');   params.push(description || null); }
+  if (display_order !== undefined) { updates.push('display_order = ?'); params.push(Number(display_order)); }
+  if (is_active     !== undefined) { updates.push('is_active = ?');     params.push(is_active ? 1 : 0); }
+  if (!updates.length) return res.status(400).json({ message: 'Aucun champ à modifier.' });
+
+  params.push(id);
+  await db.query(`UPDATE academic_tracks SET ${updates.join(', ')} WHERE id = ?`, params);
+  res.json({ message: 'Filière mise à jour.' });
+}
+
+// DELETE /api/courses/admin/tracks/:id
+async function adminDeleteTrack(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: 'ID invalide.' });
+  await db.query('DELETE FROM academic_tracks WHERE id = ?', [id]);
+  res.json({ message: 'Filière supprimée.' });
+}
+
+// PATCH /api/courses/admin/tracks/:id/toggle
+async function adminToggleTrack(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: 'ID invalide.' });
+  await db.query('UPDATE academic_tracks SET is_active = NOT is_active WHERE id = ?', [id]);
+  const [[row]] = await db.query('SELECT is_active FROM academic_tracks WHERE id = ?', [id]);
+  res.json({ is_active: row.is_active });
+}
+
 async function adminCreateSubject(req, res) {
   if (handleValidationErrors(req, res)) return;
 
@@ -245,6 +282,14 @@ async function adminUpdateSubject(req, res) {
   const [result] = await db.query(`UPDATE subjects SET ${updates.join(', ')} WHERE id = ?`, params);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Subject not found' });
   res.json({ message: 'Subject updated' });
+}
+
+async function adminToggleSubject(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: 'ID invalide.' });
+  await db.query('UPDATE subjects SET is_active = NOT is_active WHERE id = ?', [id]);
+  const [[row]] = await db.query('SELECT is_active FROM subjects WHERE id = ?', [id]);
+  res.json({ is_active: row.is_active });
 }
 
 async function adminDeleteSubject(req, res) {
@@ -448,17 +493,30 @@ async function getSubjectChapters(req, res) {
        SUM(CASE WHEN cr.resource_type = 'video_lesson' THEN 1 ELSE 0 END) AS video_count,
        SUM(CASE WHEN cr.resource_type = 'pdf_lesson' THEN 1 ELSE 0 END) AS pdf_count,
        SUM(CASE WHEN cr.resource_type = 'exercise_sheet' THEN 1 ELSE 0 END) AS exercise_count,
-       SUM(CASE WHEN cr.resource_type = 'correction_sheet' THEN 1 ELSE 0 END) AS correction_count
+       SUM(CASE WHEN cr.resource_type = 'correction_sheet' THEN 1 ELSE 0 END) AS correction_count,
+       COUNT(srp.id) AS completed_count
      FROM chapters ch
      LEFT JOIN chapter_resources cr ON cr.chapter_id = ch.id AND cr.is_published = 1
+     LEFT JOIN student_resource_progress srp ON srp.resource_id = cr.id AND srp.student_id = ?
      WHERE ch.track_subject_id = ?
        AND ch.is_published = 1
      GROUP BY ch.id, ch.title, ch.slug, ch.description, ch.display_order
      ORDER BY ch.display_order ASC, ch.title ASC`,
-    [subject.track_subject_id]
+    [req.user.id, subject.track_subject_id]
   );
 
-  res.json({ track: context.track, subject, chapters });
+  // Attach quiz gating: has_quiz, quiz_passed, locked (previous chapter's quiz)
+  let meta = {};
+  try { meta = await getChapterQuizMeta(req.user.id, subject.track_subject_id); }
+  catch { /* quiz tables not migrated yet — treat everything as unlocked */ }
+  const chaptersWithGate = chapters.map(ch => ({
+    ...ch,
+    has_quiz: meta[ch.id]?.has_quiz ?? false,
+    quiz_passed: meta[ch.id]?.quiz_passed ?? false,
+    locked: meta[ch.id]?.locked ?? false,
+  }));
+
+  res.json({ track: context.track, subject, chapters: chaptersWithGate });
 }
 
 // GET /api/courses/subjects/:subjectSlug/chapters/:chapterSlug
@@ -474,6 +532,7 @@ async function getChapterDetail(req, res) {
        ch.slug,
        ch.description,
        ch.display_order,
+       ch.track_subject_id,
        s.id AS subject_id,
        s.name AS subject_name,
        s.slug AS subject_slug,
@@ -496,13 +555,29 @@ async function getChapterDetail(req, res) {
   const chapter = chapterRows[0];
   if (!chapter) return res.status(404).json({ message: 'Chapitre introuvable pour cette classe.' });
 
+  // Gate: block content if the previous chapter's quiz hasn't been passed
+  try {
+    const meta = await getChapterQuizMeta(req.user.id, chapter.track_subject_id);
+    if (meta[chapter.id]?.locked) {
+      return res.status(403).json({
+        code: 'QUIZ_LOCKED',
+        message: 'Réussis le quiz du chapitre précédent pour débloquer ce chapitre.',
+      });
+    }
+  } catch { /* quiz tables not migrated — no gating */ }
+
   const [resources] = await db.query(
-    `SELECT id, chapter_id, resource_type, title, description, file_url, external_url, duration_minutes, display_order
-     FROM chapter_resources
-     WHERE chapter_id = ?
-       AND is_published = 1
-     ORDER BY display_order ASC, title ASC`,
-    [chapter.id]
+    `SELECT
+       cr.id, cr.chapter_id, cr.resource_type, cr.title, cr.description,
+       cr.file_url, cr.external_url, cr.duration_minutes, cr.display_order,
+       IF(srp.id IS NOT NULL, 1, 0) AS is_completed
+     FROM chapter_resources cr
+     LEFT JOIN student_resource_progress srp
+       ON srp.resource_id = cr.id AND srp.student_id = ?
+     WHERE cr.chapter_id = ?
+       AND cr.is_published = 1
+     ORDER BY cr.display_order ASC, cr.title ASC`,
+    [req.user.id, chapter.id]
   );
 
   res.json({
@@ -814,6 +889,275 @@ async function deleteCourseResource(req, res) {
   res.json({ message: 'Ressource supprimee.' });
 }
 
+// GET /api/courses/stats/me  (student only)
+async function getMyStats(req, res) {
+  const studentId = req.user.id;
+
+  // Overview
+  const [enrollRows] = await db.query(
+    `SELECT
+       COUNT(*)                                        AS total_enrollments,
+       COALESCE(SUM(e.completed), 0)                  AS completed_courses,
+       COALESCE(ROUND(AVG(e.progress)), 0)            AS avg_progress,
+       COALESCE(SUM(CASE WHEN e.completed = 0 THEN 1 ELSE 0 END), 0) AS in_progress
+     FROM enrollments e
+     WHERE e.student_id = ?`,
+    [studentId]
+  );
+
+  // Per-course progress (for bar chart) — last 10 enrolled
+  const [courseRows] = await db.query(
+    `SELECT
+       c.id,
+       c.title,
+       COALESCE(c.category, 'General') AS category,
+       e.progress,
+       e.completed,
+       e.enrolled_at
+     FROM enrollments e
+     JOIN courses c ON c.id = e.course_id
+     WHERE e.student_id = ?
+     ORDER BY e.enrolled_at DESC
+     LIMIT 10`,
+    [studentId]
+  );
+
+  // Monthly enrollment timeline (last 6 months)
+  const [timelineRows] = await db.query(
+    `SELECT
+       DATE_FORMAT(e.enrolled_at, '%Y-%m') AS month,
+       COUNT(*)                             AS count
+     FROM enrollments e
+     WHERE e.student_id = ?
+       AND e.enrolled_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+     GROUP BY DATE_FORMAT(e.enrolled_at, '%Y-%m')
+     ORDER BY month ASC`,
+    [studentId]
+  );
+
+  // Category distribution
+  const [categoryRows] = await db.query(
+    `SELECT
+       COALESCE(c.category, 'General') AS category,
+       COUNT(*)                         AS count,
+       ROUND(AVG(e.progress))           AS avg_progress
+     FROM enrollments e
+     JOIN courses c ON c.id = e.course_id
+     WHERE e.student_id = ?
+     GROUP BY COALESCE(c.category, 'General')
+     ORDER BY count DESC`,
+    [studentId]
+  );
+
+  res.json({
+    overview:   enrollRows[0],
+    courses:    courseRows,
+    timeline:   timelineRows,
+    categories: categoryRows,
+  });
+}
+
+// GET /api/courses/progress/me  (curriculum-based progress dashboard)
+async function getMyProgress(req, res) {
+  const studentId = req.user.id;
+  const context = await loadStudentTrackContext(studentId);
+  if (context.missingTrack) return academicTrackRequired(res);
+  if (!context.track?.id) {
+    return res.json({ track: null, subjects: [], totals: { chapters_completed: 0, chapters_total: 0, resources_completed: 0, resources_total: 0, quizzes_passed: 0, khlayel_sessions: 0, overall_pct: 0 }, weak_chapters: [], recent: [] });
+  }
+  const trackId = context.track.id;
+
+  // Per-subject progress
+  const [subjects] = await db.query(
+    `SELECT s.id, s.name, s.slug, s.icon, s.color,
+       COUNT(DISTINCT cr.id) AS total_resources,
+       COUNT(DISTINCT srp.resource_id) AS completed_resources
+     FROM track_subjects ts
+     JOIN subjects s ON s.id = ts.subject_id
+     LEFT JOIN chapters ch ON ch.track_subject_id = ts.id AND ch.is_published = 1
+     LEFT JOIN chapter_resources cr ON cr.chapter_id = ch.id AND cr.is_published = 1
+     LEFT JOIN student_resource_progress srp ON srp.resource_id = cr.id AND srp.student_id = ?
+     WHERE ts.academic_track_id = ? AND ts.is_published = 1 AND s.is_active = 1
+     GROUP BY s.id, s.name, s.slug, s.icon, s.color
+     ORDER BY s.name ASC`,
+    [studentId, trackId]
+  );
+  const subjectsOut = subjects.map(s => ({
+    ...s,
+    pct: s.total_resources > 0 ? Math.round((s.completed_resources / s.total_resources) * 100) : 0,
+  }));
+
+  // Per-chapter completion (for chapters_completed + weak list)
+  const [chapters] = await db.query(
+    `SELECT ch.id, ch.title, s.name AS subject,
+       COUNT(cr.id) AS total,
+       COUNT(srp.resource_id) AS done
+     FROM chapters ch
+     JOIN track_subjects ts ON ts.id = ch.track_subject_id
+     JOIN subjects s ON s.id = ts.subject_id
+     LEFT JOIN chapter_resources cr ON cr.chapter_id = ch.id AND cr.is_published = 1
+     LEFT JOIN student_resource_progress srp ON srp.resource_id = cr.id AND srp.student_id = ?
+     WHERE ts.academic_track_id = ? AND ch.is_published = 1
+     GROUP BY ch.id, ch.title, s.name`,
+    [studentId, trackId]
+  );
+  const chaptersTotal = chapters.length;
+  const chaptersCompleted = chapters.filter(c => c.total > 0 && c.done >= c.total).length;
+  const resourcesTotal = subjects.reduce((n, s) => n + Number(s.total_resources), 0);
+  const resourcesCompleted = subjects.reduce((n, s) => n + Number(s.completed_resources), 0);
+
+  // Quizzes passed + weak chapters (failed, none passed) — degrade if not migrated
+  let quizzesPassed = 0;
+  let weakChapters = [];
+  try {
+    const [[qp]] = await db.query(
+      `SELECT COUNT(DISTINCT chapter_id) AS c FROM quiz_attempts WHERE user_id = ? AND passed = 1`,
+      [studentId]
+    );
+    quizzesPassed = Number(qp?.c) || 0;
+    const [weak] = await db.query(
+      `SELECT ch.id, ch.title, s.name AS subject
+       FROM quiz_attempts qa
+       JOIN chapters ch ON ch.id = qa.chapter_id
+       JOIN track_subjects ts ON ts.id = ch.track_subject_id
+       JOIN subjects s ON s.id = ts.subject_id
+       WHERE qa.user_id = ? AND ts.academic_track_id = ?
+       GROUP BY ch.id, ch.title, s.name
+       HAVING MAX(qa.passed) = 0
+       LIMIT 6`,
+      [studentId, trackId]
+    );
+    weakChapters = weak;
+  } catch { /* quiz tables not migrated */ }
+
+  // If no failed quizzes, surface least-progressed started chapters as "à revoir"
+  if (weakChapters.length === 0) {
+    weakChapters = chapters
+      .filter(c => c.total > 0 && c.done > 0 && c.done < c.total)
+      .sort((a, b) => (a.done / a.total) - (b.done / b.total))
+      .slice(0, 4)
+      .map(c => ({ id: c.id, title: c.title, subject: c.subject }));
+  }
+
+  // Khlayel sessions
+  let khlayelSessions = 0;
+  try {
+    const [[ks]] = await db.query(`SELECT COUNT(*) AS c FROM ai_conversations WHERE user_id = ?`, [studentId]);
+    khlayelSessions = Number(ks?.c) || 0;
+  } catch { /* table absent */ }
+
+  const overallPct = resourcesTotal > 0 ? Math.round((resourcesCompleted / resourcesTotal) * 100) : 0;
+
+  res.json({
+    track: context.track,
+    subjects: subjectsOut,
+    totals: {
+      chapters_completed: chaptersCompleted,
+      chapters_total: chaptersTotal,
+      resources_completed: resourcesCompleted,
+      resources_total: resourcesTotal,
+      quizzes_passed: quizzesPassed,
+      khlayel_sessions: khlayelSessions,
+      overall_pct: overallPct,
+    },
+    weak_chapters: weakChapters,
+  });
+}
+
+// GET /api/courses/:id/content  (enrolled student)
+async function getCourseContent(req, res) {
+  const courseId = req.params.id;
+
+  const [enrollRows] = await db.query(
+    'SELECT id, progress, completed FROM enrollments WHERE student_id = ? AND course_id = ?',
+    [req.user.id, courseId]
+  );
+  if (!enrollRows[0]) {
+    return res.status(403).json({ message: 'Vous n\'etes pas inscrit a ce cours.' });
+  }
+
+  const [courseRows] = await db.query(
+    `SELECT c.*, u.first_name, u.last_name
+     FROM courses c
+     JOIN users u ON u.id = c.teacher_id
+     WHERE c.id = ?`,
+    [courseId]
+  );
+  if (!courseRows[0]) return res.status(404).json({ message: 'Cours introuvable.' });
+
+  const [chapterRows] = await db.query(
+    `SELECT id, title, slug, description, display_order
+     FROM course_chapters
+     WHERE course_id = ? AND is_published = 1
+     ORDER BY display_order ASC, title ASC`,
+    [courseId]
+  );
+
+  const [resourceRows] = await db.query(
+    `SELECT id, chapter_id, resource_type, title, description, file_url, external_url, duration_minutes, display_order
+     FROM course_resources
+     WHERE chapter_id IN (
+       SELECT id FROM course_chapters WHERE course_id = ? AND is_published = 1
+     )
+     AND is_published = 1
+     ORDER BY display_order ASC, title ASC`,
+    [courseId]
+  );
+
+  const resourcesByChapter = resourceRows.reduce((acc, r) => {
+    if (!acc[r.chapter_id]) acc[r.chapter_id] = [];
+    acc[r.chapter_id].push(r);
+    return acc;
+  }, {});
+
+  const chapters = chapterRows.map((chapter) => ({
+    ...chapter,
+    resources: resourcesByChapter[chapter.id] || [],
+  }));
+
+  res.json({
+    course: courseRows[0],
+    enrollment: enrollRows[0],
+    chapters,
+  });
+}
+
+// PATCH /api/courses/:id/progress  (enrolled student)
+async function updateProgress(req, res) {
+  const courseId = req.params.id;
+
+  const [enrollRows] = await db.query(
+    'SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?',
+    [req.user.id, courseId]
+  );
+  if (!enrollRows[0]) {
+    return res.status(403).json({ message: 'Vous n\'etes pas inscrit a ce cours.' });
+  }
+
+  const { progress, completed } = req.body;
+  const updates = [];
+  const params  = [];
+
+  if (progress !== undefined) {
+    updates.push('progress = ?');
+    params.push(Math.min(100, Math.max(0, Number(progress))));
+  }
+  if (completed !== undefined) {
+    updates.push('completed = ?');
+    params.push(completed ? 1 : 0);
+  }
+  if (updates.length === 0) {
+    return res.status(400).json({ message: 'Rien a mettre a jour.' });
+  }
+
+  params.push(req.user.id, courseId);
+  await db.query(
+    `UPDATE enrollments SET ${updates.join(', ')} WHERE student_id = ? AND course_id = ?`,
+    params
+  );
+  res.json({ message: 'Progression mise a jour.' });
+}
+
 // POST /api/courses/:id/enroll  (student only)
 async function enroll(req, res) {
   const courseId = req.params.id;
@@ -843,11 +1187,332 @@ async function myEnrollments(req, res) {
   res.json(rows);
 }
 
+// ─── Teacher subject assignment (admin manages) ───────────────────────────────
+
+// GET /api/courses/admin/teacher-assignments
+async function adminGetTeacherAssignments(req, res) {
+  const [rows] = await db.query(
+    `SELECT tsa.id, tsa.assigned_at,
+            u.id AS teacher_id, u.first_name, u.last_name, u.email,
+            ts.id AS track_subject_id,
+            s.name AS subject_name, s.slug AS subject_slug,
+            at.title AS track_title, at.grade_code, at.section_code
+     FROM teacher_subject_assignments tsa
+     JOIN users u ON u.id = tsa.teacher_id
+     JOIN track_subjects ts ON ts.id = tsa.track_subject_id
+     JOIN subjects s ON s.id = ts.subject_id
+     JOIN academic_tracks at ON at.id = ts.academic_track_id
+     ORDER BY u.first_name, at.title, s.name`
+  );
+  res.json(rows);
+}
+
+// POST /api/courses/admin/teacher-assignments
+async function adminCreateTeacherAssignment(req, res) {
+  const { teacher_id, track_subject_id } = req.body;
+  // Check teacher exists and has role teacher
+  const [teachers] = await db.query(
+    "SELECT id FROM users WHERE id = ? AND role = 'teacher'",
+    [teacher_id]
+  );
+  if (!teachers[0]) return res.status(404).json({ message: 'Enseignant introuvable.' });
+
+  // Check track_subject exists
+  const [subjects] = await db.query(
+    'SELECT id FROM track_subjects WHERE id = ?',
+    [track_subject_id]
+  );
+  if (!subjects[0]) return res.status(404).json({ message: 'Matière introuvable.' });
+
+  try {
+    const [result] = await db.query(
+      'INSERT INTO teacher_subject_assignments (teacher_id, track_subject_id, assigned_by) VALUES (?, ?, ?)',
+      [teacher_id, track_subject_id, req.user.id]
+    );
+    res.status(201).json({ id: result.insertId, message: 'Enseignant assigné avec succès.' });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'Cet enseignant est déjà assigné à une matière.' });
+    }
+    throw err;
+  }
+}
+
+// DELETE /api/courses/admin/teacher-assignments/:id
+async function adminDeleteTeacherAssignment(req, res) {
+  const id = parseInt(req.params.id, 10);
+  await db.query('DELETE FROM teacher_subject_assignments WHERE id = ?', [id]);
+  res.json({ message: 'Assignation supprimée.' });
+}
+
+// ─── Teacher curriculum routes ────────────────────────────────────────────────
+
+// Helper: load all teacher's assigned track_subject_ids
+async function loadTeacherSubjectIds(teacherId) {
+  const [rows] = await db.query(
+    'SELECT track_subject_id FROM teacher_subject_assignments WHERE teacher_id = ?',
+    [teacherId]
+  );
+  return rows.map(r => r.track_subject_id);
+}
+
+// GET /api/courses/teacher/my-subject  → returns all assigned subjects + their chapters
+async function teacherGetMySubject(req, res) {
+  const [assignments] = await db.query(
+    `SELECT tsa.id AS assignment_id, tsa.track_subject_id,
+            s.id AS subject_id, s.name AS subject_name, s.slug AS subject_slug,
+            s.description AS subject_description, s.color AS subject_color,
+            at.id AS track_id, at.title AS track_title,
+            at.grade_code, at.section_code, at.school_cycle
+     FROM teacher_subject_assignments tsa
+     JOIN track_subjects ts ON ts.id = tsa.track_subject_id
+     JOIN subjects s ON s.id = ts.subject_id
+     JOIN academic_tracks at ON at.id = ts.academic_track_id
+     WHERE tsa.teacher_id = ?
+     ORDER BY at.title, s.name`,
+    [req.user.id]
+  );
+
+  if (!assignments.length) {
+    return res.status(404).json({ code: 'NO_ASSIGNMENT', message: 'Aucune matière ne vous est assignée.' });
+  }
+
+  // For each assignment, get its chapters
+  const result = await Promise.all(assignments.map(async (a) => {
+    const [chapters] = await db.query(
+      `SELECT ch.id, ch.title, ch.slug, ch.description, ch.display_order, ch.is_published,
+              COUNT(cr.id) AS resource_count
+       FROM chapters ch
+       LEFT JOIN chapter_resources cr ON cr.chapter_id = ch.id
+       WHERE ch.track_subject_id = ?
+       GROUP BY ch.id
+       ORDER BY ch.display_order ASC, ch.title ASC`,
+      [a.track_subject_id]
+    );
+    return { ...a, chapters };
+  }));
+
+  res.json(result);
+}
+
+// POST /api/courses/teacher/chapters
+async function teacherCreateChapter(req, res) {
+  const ids = await loadTeacherSubjectIds(req.user.id);
+  if (!ids.length) return res.status(403).json({ message: 'Aucune matière assignée.' });
+
+  const { track_subject_id, title, slug, description, display_order, is_published } = req.body;
+  if (!ids.includes(Number(track_subject_id))) return res.status(403).json({ message: 'Matière non assignée.' });
+
+  const [result] = await db.query(
+    `INSERT INTO chapters (track_subject_id, title, slug, description, display_order, is_published, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [track_subject_id, title,
+     slug || title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+     description || null, display_order || 0, is_published ?? 1, req.user.id]
+  );
+  res.status(201).json({ id: result.insertId, message: 'Chapitre créé.' });
+}
+
+// PUT /api/courses/teacher/chapters/:id
+async function teacherUpdateChapter(req, res) {
+  const ids = await loadTeacherSubjectIds(req.user.id);
+  if (!ids.length) return res.status(403).json({ message: 'Aucune matière assignée.' });
+
+  const chapterId = parseInt(req.params.id, 10);
+  const [rows] = await db.query(
+    `SELECT id FROM chapters WHERE id = ? AND track_subject_id IN (${ids.map(() => '?').join(',')})`,
+    [chapterId, ...ids]
+  );
+  if (!rows[0]) return res.status(404).json({ message: 'Chapitre introuvable.' });
+
+  const { title, slug, description, display_order, is_published } = req.body;
+  const updates = [];
+  const params  = [];
+  if (title         !== undefined) { updates.push('title = ?');         params.push(title); }
+  if (slug          !== undefined) { updates.push('slug = ?');          params.push(slug); }
+  if (description   !== undefined) { updates.push('description = ?');   params.push(description); }
+  if (display_order !== undefined) { updates.push('display_order = ?'); params.push(display_order); }
+  if (is_published  !== undefined) { updates.push('is_published = ?');  params.push(is_published ? 1 : 0); }
+  if (!updates.length) return res.status(400).json({ message: 'Aucun champ à modifier.' });
+
+  params.push(chapterId);
+  await db.query(`UPDATE chapters SET ${updates.join(', ')} WHERE id = ?`, params);
+  res.json({ message: 'Chapitre mis à jour.' });
+}
+
+// DELETE /api/courses/teacher/chapters/:id
+async function teacherDeleteChapter(req, res) {
+  const ids = await loadTeacherSubjectIds(req.user.id);
+  if (!ids.length) return res.status(403).json({ message: 'Aucune matière assignée.' });
+
+  const chapterId = parseInt(req.params.id, 10);
+  const [rows] = await db.query(
+    `SELECT id FROM chapters WHERE id = ? AND track_subject_id IN (${ids.map(() => '?').join(',')})`,
+    [chapterId, ...ids]
+  );
+  if (!rows[0]) return res.status(404).json({ message: 'Chapitre introuvable.' });
+
+  await db.query('DELETE FROM chapters WHERE id = ?', [chapterId]);
+  res.json({ message: 'Chapitre supprimé.' });
+}
+
+// GET /api/courses/teacher/chapters/:id/resources
+async function teacherGetResources(req, res) {
+  const ids = await loadTeacherSubjectIds(req.user.id);
+  if (!ids.length) return res.status(403).json({ message: 'Aucune matière assignée.' });
+
+  const chapterId = parseInt(req.params.id, 10);
+  const [chapters] = await db.query(
+    `SELECT id FROM chapters WHERE id = ? AND track_subject_id IN (${ids.map(() => '?').join(',')})`,
+    [chapterId, ...ids]
+  );
+  if (!chapters[0]) return res.status(404).json({ message: 'Chapitre introuvable.' });
+
+  const [rows] = await db.query(
+    `SELECT id, resource_type, title, description, file_url, external_url, duration_minutes, display_order, is_published
+     FROM chapter_resources WHERE chapter_id = ? ORDER BY display_order ASC, title ASC`,
+    [chapterId]
+  );
+  res.json(rows);
+}
+
+// POST /api/courses/teacher/resources
+async function teacherCreateResource(req, res) {
+  const ids = await loadTeacherSubjectIds(req.user.id);
+  if (!ids.length) return res.status(403).json({ message: 'Aucune matière assignée.' });
+
+  const { chapter_id, resource_type, title, description, file_url, external_url, duration_minutes, display_order, is_published } = req.body;
+
+  const [chapters] = await db.query(
+    `SELECT id FROM chapters WHERE id = ? AND track_subject_id IN (${ids.map(() => '?').join(',')})`,
+    [chapter_id, ...ids]
+  );
+  if (!chapters[0]) return res.status(403).json({ message: 'Ce chapitre ne vous appartient pas.' });
+
+  const [result] = await db.query(
+    `INSERT INTO chapter_resources (chapter_id, resource_type, title, description, file_url, external_url, duration_minutes, display_order, is_published)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [chapter_id, resource_type, title, description || null, file_url || null, external_url || null,
+     duration_minutes || null, display_order || 0, is_published ?? 1]
+  );
+  res.status(201).json({ id: result.insertId, message: 'Ressource créée.' });
+}
+
+// PUT /api/courses/teacher/resources/:id
+async function teacherUpdateResource(req, res) {
+  const ids = await loadTeacherSubjectIds(req.user.id);
+  if (!ids.length) return res.status(403).json({ message: 'Aucune matière assignée.' });
+
+  const resourceId = parseInt(req.params.id, 10);
+  const [rows] = await db.query(
+    `SELECT cr.id FROM chapter_resources cr
+     JOIN chapters ch ON ch.id = cr.chapter_id
+     WHERE cr.id = ? AND ch.track_subject_id IN (${ids.map(() => '?').join(',')})`,
+    [resourceId, ...ids]
+  );
+  if (!rows[0]) return res.status(404).json({ message: 'Ressource introuvable.' });
+
+  const { resource_type, title, description, file_url, external_url, duration_minutes, display_order, is_published } = req.body;
+  const updates = [];
+  const params  = [];
+  if (resource_type    !== undefined) { updates.push('resource_type = ?');    params.push(resource_type); }
+  if (title            !== undefined) { updates.push('title = ?');            params.push(title); }
+  if (description      !== undefined) { updates.push('description = ?');      params.push(description); }
+  if (file_url         !== undefined) { updates.push('file_url = ?');         params.push(file_url || null); }
+  if (external_url     !== undefined) { updates.push('external_url = ?');     params.push(external_url || null); }
+  if (duration_minutes !== undefined) { updates.push('duration_minutes = ?'); params.push(duration_minutes || null); }
+  if (display_order    !== undefined) { updates.push('display_order = ?');    params.push(display_order); }
+  if (is_published     !== undefined) { updates.push('is_published = ?');     params.push(is_published ? 1 : 0); }
+  if (!updates.length) return res.status(400).json({ message: 'Aucun champ à modifier.' });
+
+  params.push(resourceId);
+  await db.query(`UPDATE chapter_resources SET ${updates.join(', ')} WHERE id = ?`, params);
+  res.json({ message: 'Ressource mise à jour.' });
+}
+
+// DELETE /api/courses/teacher/resources/:id
+async function teacherDeleteResource(req, res) {
+  const ids = await loadTeacherSubjectIds(req.user.id);
+  if (!ids.length) return res.status(403).json({ message: 'Aucune matière assignée.' });
+
+  const resourceId = parseInt(req.params.id, 10);
+  const [rows] = await db.query(
+    `SELECT cr.id FROM chapter_resources cr
+     JOIN chapters ch ON ch.id = cr.chapter_id
+     WHERE cr.id = ? AND ch.track_subject_id IN (${ids.map(() => '?').join(',')})`,
+    [resourceId, ...ids]
+  );
+  if (!rows[0]) return res.status(404).json({ message: 'Ressource introuvable.' });
+
+  await db.query('DELETE FROM chapter_resources WHERE id = ?', [resourceId]);
+  res.json({ message: 'Ressource supprimée.' });
+}
+
+// ─── GET /api/courses/admin/unassigned-teachers  (all teachers — multi-subject allowed) ─
+async function adminGetUnassignedTeachers(req, res) {
+  const [rows] = await db.query(
+    `SELECT u.id, u.first_name, u.last_name, u.email
+     FROM users u
+     WHERE u.role = 'teacher'
+     ORDER BY u.first_name`
+  );
+  res.json(rows);
+}
+
+// GET /api/courses/admin/track-subjects-list  (for assignment dropdown)
+async function adminGetTrackSubjectsList(req, res) {
+  const [rows] = await db.query(
+    `SELECT ts.id, s.name AS subject_name, at.title AS track_title,
+            at.grade_code, at.section_code
+     FROM track_subjects ts
+     JOIN subjects s ON s.id = ts.subject_id
+     JOIN academic_tracks at ON at.id = ts.academic_track_id
+     WHERE ts.is_published = 1 AND at.is_active = 1
+     ORDER BY at.title, s.name`
+  );
+  res.json(rows);
+}
+
+// POST /api/courses/resources/:id/complete
+async function markResourceComplete(req, res) {
+  const resourceId = parseInt(req.params.id, 10);
+  if (!resourceId) return res.status(400).json({ message: 'ID de ressource invalide.' });
+
+  // Verify the resource exists and is published
+  const [rows] = await db.query(
+    'SELECT id FROM chapter_resources WHERE id = ? AND is_published = 1',
+    [resourceId]
+  );
+  if (!rows[0]) return res.status(404).json({ message: 'Ressource introuvable.' });
+
+  await db.query(
+    'INSERT IGNORE INTO student_resource_progress (student_id, resource_id) VALUES (?, ?)',
+    [req.user.id, resourceId]
+  );
+  res.json({ completed: true });
+}
+
+// DELETE /api/courses/resources/:id/complete
+async function unmarkResourceComplete(req, res) {
+  const resourceId = parseInt(req.params.id, 10);
+  if (!resourceId) return res.status(400).json({ message: 'ID de ressource invalide.' });
+
+  await db.query(
+    'DELETE FROM student_resource_progress WHERE student_id = ? AND resource_id = ?',
+    [req.user.id, resourceId]
+  );
+  res.json({ completed: false });
+}
+
 module.exports = {
   adminGetCurriculum,
+  adminUpdateTrack,
+  adminDeleteTrack,
+  adminToggleTrack,
   adminCreateSubject,
   adminUpdateSubject,
   adminDeleteSubject,
+  adminToggleSubject,
   adminCreateTrackSubject,
   adminUpdateTrackSubject,
   adminDeleteTrackSubject,
@@ -860,6 +1525,8 @@ module.exports = {
   getMySubjects,
   getSubjectChapters,
   getChapterDetail,
+  markResourceComplete,
+  unmarkResourceComplete,
   getAll,
   getOne,
   getTeacherOutline,
@@ -873,6 +1540,25 @@ module.exports = {
   createCourseResource,
   updateCourseResource,
   deleteCourseResource,
+  getCourseContent,
+  updateProgress,
   enroll,
   myEnrollments,
+  getMyStats,
+  getMyProgress,
+  // teacher assignments (admin)
+  adminGetTeacherAssignments,
+  adminCreateTeacherAssignment,
+  adminDeleteTeacherAssignment,
+  adminGetUnassignedTeachers,
+  adminGetTrackSubjectsList,
+  // teacher curriculum
+  teacherGetMySubject,
+  teacherCreateChapter,
+  teacherUpdateChapter,
+  teacherDeleteChapter,
+  teacherGetResources,
+  teacherCreateResource,
+  teacherUpdateResource,
+  teacherDeleteResource,
 };

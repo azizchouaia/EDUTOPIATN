@@ -42,7 +42,12 @@ async function getChildren(req, res) {
        l.relation_type,
        COUNT(e.id) AS enrolled_courses,
        COALESCE(SUM(CASE WHEN e.completed = 1 THEN 1 ELSE 0 END), 0) AS completed_courses,
-       COALESCE(ROUND(AVG(e.progress)), 0) AS avg_progress
+       COALESCE(ROUND(AVG(e.progress)), 0) AS avg_progress,
+       (SELECT s.plan        FROM subscriptions s WHERE s.user_id = u.id AND s.status = 'active' AND s.end_date >= CURDATE() ORDER BY s.end_date DESC LIMIT 1) AS active_plan,
+       (SELECT s.billing_cycle FROM subscriptions s WHERE s.user_id = u.id AND s.status = 'active' AND s.end_date >= CURDATE() ORDER BY s.end_date DESC LIMIT 1) AS active_billing_cycle,
+       (SELECT s.start_date  FROM subscriptions s WHERE s.user_id = u.id AND s.status = 'active' AND s.end_date >= CURDATE() ORDER BY s.end_date DESC LIMIT 1) AS active_start_date,
+       (SELECT s.end_date    FROM subscriptions s WHERE s.user_id = u.id AND s.status = 'active' AND s.end_date >= CURDATE() ORDER BY s.end_date DESC LIMIT 1) AS active_end_date,
+       (SELECT DATEDIFF(s.end_date, CURDATE()) FROM subscriptions s WHERE s.user_id = u.id AND s.status = 'active' AND s.end_date >= CURDATE() ORDER BY s.end_date DESC LIMIT 1) AS active_days_remaining
      FROM parent_student_links l
      JOIN users u ON u.id = l.student_id
      LEFT JOIN enrollments e ON e.student_id = u.id
@@ -92,8 +97,18 @@ async function getChildProgress(req, res) {
     ? Math.round(enrollments.reduce((sum, enrollment) => sum + Number(enrollment.progress || 0), 0) / totalCourses)
     : 0;
 
+  const [subRows] = await db.query(
+    `SELECT plan, billing_cycle, start_date, end_date,
+            DATEDIFF(end_date, CURDATE()) AS days_remaining
+     FROM subscriptions
+     WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()
+     ORDER BY end_date DESC LIMIT 1`,
+    [child.id]
+  );
+
   res.json({
     child,
+    subscription: subRows[0] || null,
     stats: {
       total_courses: totalCourses,
       completed_courses: completedCourses,

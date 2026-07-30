@@ -42,7 +42,7 @@ async function create(req, res) {
 // GET /api/users  (admin only)
 async function getAll(req, res) {
   const [rows] = await db.query(
-    'SELECT id, first_name, last_name, age, email, role, college, year_of_study, school_cycle, grade_code, section_code, is_active, created_at FROM users ORDER BY created_at DESC'
+    'SELECT id, first_name, last_name, age, email, phone, role, college, year_of_study, school_cycle, grade_code, section_code, is_active, created_at FROM users ORDER BY created_at DESC'
   );
   res.json(rows);
 }
@@ -54,7 +54,7 @@ async function getOne(req, res) {
     return res.status(403).json({ message: 'Acces refuse.' });
   }
   const [rows] = await db.query(
-    'SELECT id, first_name, last_name, age, email, role, college, year_of_study, school_cycle, grade_code, section_code, avatar_url, is_active, created_at FROM users WHERE id = ?',
+    'SELECT id, first_name, last_name, age, email, phone, role, college, year_of_study, school_cycle, grade_code, section_code, avatar_url, is_active, created_at FROM users WHERE id = ?',
     [id]
   );
   if (!rows[0]) return res.status(404).json({ message: 'Utilisateur introuvable.' });
@@ -81,7 +81,7 @@ async function update(req, res) {
     }
   }
 
-  const allowed = ['first_name', 'last_name', 'age', 'email', 'college', 'avatar_url'];
+  const allowed = ['first_name', 'last_name', 'age', 'email', 'phone', 'college', 'avatar_url'];
   if (req.user.role === 'admin') allowed.push('role', 'is_active');
 
   const updates = [];

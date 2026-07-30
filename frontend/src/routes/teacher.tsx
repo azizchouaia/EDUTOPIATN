@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { BookOpen, CalendarDays, Eye, EyeOff, Layers3, Link2, Loader2, Pencil, PlayCircle, Plus, Trash2, User, UserRound } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { BookOpen, CalendarDays, CheckCircle2, Eye, EyeOff, FileText, GraduationCap, Layers3, Link2, Loader2, Pencil, PlayCircle, Plus, Trash2, Upload, User, UserRound, X } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useMe } from "@/hooks/useAuth"
 import api from "@/lib/api"
+import { ImageUpload } from "@/components/ui/ImageUpload"
 import { isAuthenticated } from "@/lib/auth"
 import { GRADE_OPTIONS, SECTION_OPTIONS, formatAcademicTrack, needsSection } from "@/lib/academic"
 import { hasErrors, hasMinLength, isBlank, isFutureDateTime, isNonNegativeInteger, isNonNegativeNumber, isPositiveInteger, isValidDateInput, isValidSlug, isValidUrl, type FormErrors } from "@/lib/validation"
@@ -198,6 +199,9 @@ function TeacherWorkspacePage() {
   const [chapterErrors, setChapterErrors] = useState<FormErrors<keyof ChapterForm & string>>({})
   const [resourceErrors, setResourceErrors] = useState<FormErrors<keyof ResourceForm & string>>({})
   const [eventErrors, setEventErrors] = useState<FormErrors<keyof EventForm & string>>({})
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const [uploadedFileName, setUploadedFileName] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -410,6 +414,148 @@ function TeacherWorkspacePage() {
     onError: (error) => toast.error(getErrorMessage(error, "Suppression de la session impossible.")),
   })
 
+  // ── Curriculum (assigned subjects — multiple) ──────────────────────────────
+  type CurriculumSubject = {
+    assignment_id: number
+    track_subject_id: number
+    subject_name: string; subject_slug: string; subject_description: string | null; subject_color: string | null
+    track_title: string; grade_code: string; section_code: string | null; school_cycle: string
+    chapters: CurriculumChapter[]
+  }
+  type CurriculumChapter = {
+    id: number; title: string; slug: string; description: string | null
+    display_order: number; is_published: number; resource_count: number
+  }
+  type CurriculumResource = {
+    id: number; chapter_id: number; resource_type: ResourceType; title: string
+    description: string | null; file_url: string | null; external_url: string | null
+    duration_minutes: number | null; display_order: number; is_published: number
+  }
+
+  const [currTab, setCurrTab] = useState<"chapters" | "resources">("chapters")
+  const [currSelectedSubjectId, setCurrSelectedSubjectId] = useState<number | null>(null)
+  const [currChapterForm, setCurrChapterForm] = useState({ title: "", slug: "", description: "", display_order: "0", is_published: true })
+  const [currEditChapterId, setCurrEditChapterId] = useState<number | null>(null)
+  const [currSelectedChapterId, setCurrSelectedChapterId] = useState<number | null>(null)
+  const [currResourceForm, setCurrResourceForm] = useState<ResourceForm>(INITIAL_RESOURCE_FORM)
+  const [currEditResourceId, setCurrEditResourceId] = useState<number | null>(null)
+  const [currUploadingFile, setCurrUploadingFile] = useState(false)
+  const [currUploadedFileName, setCurrUploadedFileName] = useState("")
+  const currFileInputRef = useRef<HTMLInputElement>(null)
+
+  const { data: mySubjects = [], isLoading: isSubjectLoading } = useQuery<CurriculumSubject[]>({
+    queryKey: ["teacher-my-subject"],
+    enabled: mounted && user?.role === "teacher",
+    queryFn: async () => (await api.get("/courses/teacher/my-subject")).data,
+  })
+
+  // Active subject
+  const activeSubject = mySubjects.find(s => s.track_subject_id === currSelectedSubjectId) ?? mySubjects[0] ?? null
+
+  const { data: currResources = [], isLoading: isCurrResourcesLoading } = useQuery<CurriculumResource[]>({
+    queryKey: ["teacher-chapter-resources", currSelectedChapterId],
+    enabled: currSelectedChapterId !== null,
+    queryFn: async () => (await api.get<CurriculumResource[]>(`/courses/teacher/chapters/${currSelectedChapterId}/resources`)).data,
+  })
+
+  useEffect(() => {
+    if (mySubjects.length && currSelectedSubjectId === null) {
+      setCurrSelectedSubjectId(mySubjects[0].track_subject_id)
+    }
+  }, [mySubjects, currSelectedSubjectId])
+
+  useEffect(() => {
+    if (activeSubject?.chapters.length && currSelectedChapterId === null) {
+      setCurrSelectedChapterId(activeSubject.chapters[0].id)
+    }
+  }, [activeSubject, currSelectedChapterId])
+
+  const invalidateCurriculum = () => {
+    queryClient.invalidateQueries({ queryKey: ["teacher-my-subject"] })
+    queryClient.invalidateQueries({ queryKey: ["teacher-chapter-resources", currSelectedChapterId] })
+  }
+
+  const currCreateChapterMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => api.post("/courses/teacher/chapters", payload),
+    onSuccess: () => { toast.success("Chapitre créé."); setCurrChapterForm({ title: "", slug: "", description: "", display_order: "0", is_published: true }); setCurrEditChapterId(null); invalidateCurriculum() },
+    onError: (e) => toast.error(getErrorMessage(e, "Impossible de créer le chapitre.")),
+  })
+
+  const currUpdateChapterMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Record<string, unknown> }) => api.put(`/courses/teacher/chapters/${id}`, payload),
+    onSuccess: () => { toast.success("Chapitre mis à jour."); setCurrChapterForm({ title: "", slug: "", description: "", display_order: "0", is_published: true }); setCurrEditChapterId(null); invalidateCurriculum() },
+    onError: (e) => toast.error(getErrorMessage(e, "Mise à jour impossible.")),
+  })
+
+  const currDeleteChapterMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/courses/teacher/chapters/${id}`),
+    onSuccess: () => { toast.success("Chapitre supprimé."); invalidateCurriculum() },
+    onError: (e) => toast.error(getErrorMessage(e, "Suppression impossible.")),
+  })
+
+  const currCreateResourceMutation = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => api.post("/courses/teacher/resources", payload),
+    onSuccess: () => { toast.success("Ressource créée."); setCurrResourceForm(INITIAL_RESOURCE_FORM); setCurrEditResourceId(null); invalidateCurriculum() },
+    onError: (e) => toast.error(getErrorMessage(e, "Impossible de créer la ressource.")),
+  })
+
+  const currUpdateResourceMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Record<string, unknown> }) => api.put(`/courses/teacher/resources/${id}`, payload),
+    onSuccess: () => { toast.success("Ressource mise à jour."); setCurrResourceForm(INITIAL_RESOURCE_FORM); setCurrEditResourceId(null); invalidateCurriculum() },
+    onError: (e) => toast.error(getErrorMessage(e, "Mise à jour impossible.")),
+  })
+
+  const currDeleteResourceMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/courses/teacher/resources/${id}`),
+    onSuccess: () => { toast.success("Ressource supprimée."); invalidateCurriculum() },
+    onError: (e) => toast.error(getErrorMessage(e, "Suppression impossible.")),
+  })
+
+  const saveCurrChapter = () => {
+    if (!currChapterForm.title.trim()) { toast.error("Le titre est requis."); return }
+    if (!activeSubject) { toast.error("Sélectionnez une matière."); return }
+    const payload = {
+      track_subject_id: activeSubject.track_subject_id,
+      title: currChapterForm.title,
+      slug: currChapterForm.slug || currChapterForm.title.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
+      description: currChapterForm.description || null,
+      display_order: Number(currChapterForm.display_order) || 0,
+      is_published: currChapterForm.is_published ? 1 : 0,
+    }
+    if (currEditChapterId) currUpdateChapterMutation.mutate({ id: currEditChapterId, payload })
+    else currCreateChapterMutation.mutate(payload)
+  }
+
+  const saveCurrResource = () => {
+    if (!currResourceForm.title.trim() || !currResourceForm.chapter_id) { toast.error("Titre et chapitre requis."); return }
+    if (!currResourceForm.file_url && !currResourceForm.external_url) { toast.error("Ajoutez un fichier ou une URL."); return }
+    const payload = {
+      chapter_id: Number(currResourceForm.chapter_id),
+      resource_type: currResourceForm.resource_type,
+      title: currResourceForm.title,
+      description: currResourceForm.description || null,
+      file_url: currResourceForm.file_url || null,
+      external_url: currResourceForm.external_url || null,
+      duration_minutes: currResourceForm.duration_minutes ? Number(currResourceForm.duration_minutes) : null,
+      display_order: Number(currResourceForm.display_order) || 0,
+      is_published: currResourceForm.is_published ? 1 : 0,
+    }
+    if (currEditResourceId) currUpdateResourceMutation.mutate({ id: currEditResourceId, payload })
+    else currCreateResourceMutation.mutate(payload)
+  }
+
+  const handleCurrFileUpload = async (file: File) => {
+    setCurrUploadingFile(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await api.post<{ file_url: string }>("/courses/resources/upload", formData, { headers: { "Content-Type": "multipart/form-data" } })
+      setCurrResourceForm(prev => ({ ...prev, file_url: res.data.file_url, external_url: "" }))
+      setCurrUploadedFileName(file.name)
+    } catch { toast.error("Erreur lors de l'upload.") }
+    finally { setCurrUploadingFile(false) }
+  }
+
   const stats = useMemo(() => {
     const published = courses.filter((course) => Boolean(course.is_published)).length
     const drafts = courses.length - published
@@ -457,7 +603,7 @@ function TeacherWorkspacePage() {
           </div>
         </section>
 
-        <Card className="border-border/70 bg-white/85">
+        <Card className="border-border/70 bg-card">
           <CardHeader>
             <CardTitle className="font-display text-2xl text-bordeaux">Teacher profile</CardTitle>
             <CardDescription>Visible identity already ready to support your courses and sessions.</CardDescription>
@@ -490,7 +636,7 @@ function TeacherWorkspacePage() {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {stats.map((item) => (
-            <Card key={item.label} className="border-border/70 bg-white/85">
+            <Card key={item.label} className="border-border/70 bg-card">
               <CardContent className="p-5">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">{item.label}</p>
                 <p className="mt-3 font-display text-4xl font-bold text-bordeaux">{item.value}</p>
@@ -499,8 +645,263 @@ function TeacherWorkspacePage() {
           ))}
         </div>
 
+        {/* ── MON CURRICULUM ──────────────────────────────────────────────────── */}
+        <Card className="border-bordeaux/20 bg-card">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-bordeaux/10">
+                <GraduationCap className="h-5 w-5 text-bordeaux" />
+              </div>
+              <div>
+                <CardTitle className="font-display text-2xl text-bordeaux">Mon curriculum</CardTitle>
+                <CardDescription>Gérez les chapitres et ressources de votre matière assignée.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isSubjectLoading ? (
+              <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-bordeaux" /></div>
+            ) : mySubjects.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
+                <GraduationCap className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="font-medium text-muted-foreground">Aucune matière ne vous est assignée.</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Contactez l'administrateur pour être assigné à une matière.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Subject selector pills — one per track_subject assignment */}
+                {mySubjects.length > 1 && (
+                  <div className="flex flex-wrap gap-2">
+                    {mySubjects.map(s => (
+                      <button
+                        key={s.track_subject_id}
+                        onClick={() => { setCurrSelectedSubjectId(s.track_subject_id); setCurrSelectedChapterId(null); setCurrEditChapterId(null) }}
+                        className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${activeSubject?.track_subject_id === s.track_subject_id ? "bg-bordeaux text-white border-bordeaux" : "border-border text-muted-foreground hover:border-bordeaux/40 hover:text-bordeaux"}`}
+                      >
+                        {s.subject_name} — {s.track_title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Active subject banner */}
+                {activeSubject && (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-bordeaux/20 bg-bordeaux/5 p-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-display text-xl font-semibold text-bordeaux">{activeSubject.subject_name}</p>
+                    <p className="text-sm text-muted-foreground">{activeSubject.track_title}</p>
+                  </div>
+                  <Badge className="bg-gold/15 text-bordeaux border border-gold/40">
+                    {activeSubject.chapters.length} chapitre{activeSubject.chapters.length !== 1 ? "s" : ""}
+                  </Badge>
+                </div>
+                )}
+
+                {/* Tabs */}
+                <div className="flex gap-2 border-b border-border pb-0">
+                  {(["chapters", "resources"] as const).map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setCurrTab(tab)}
+                      className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${currTab === tab ? "border-bordeaux text-bordeaux" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {tab === "chapters" ? "Chapitres" : "Ressources"}
+                    </button>
+                  ))}
+                </div>
+
+                {currTab === "chapters" && (
+                  <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+                    {/* Chapter form */}
+                    <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                      <h3 className="font-semibold text-foreground">{currEditChapterId ? "Modifier le chapitre" : "Nouveau chapitre"}</h3>
+                      <div className="space-y-1.5">
+                        <Label>Titre *</Label>
+                        <Input value={currChapterForm.title} onChange={e => setCurrChapterForm(p => ({ ...p, title: e.target.value }))} placeholder="ex: Nombres complexes" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Description</Label>
+                        <Textarea rows={3} value={currChapterForm.description} onChange={e => setCurrChapterForm(p => ({ ...p, description: e.target.value }))} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>Ordre d'affichage</Label>
+                          <Input type="number" value={currChapterForm.display_order} onChange={e => setCurrChapterForm(p => ({ ...p, display_order: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Statut</Label>
+                          <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={currChapterForm.is_published ? "1" : "0"} onChange={e => setCurrChapterForm(p => ({ ...p, is_published: e.target.value === "1" }))}>
+                            <option value="1">Publié</option>
+                            <option value="0">Brouillon</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button onClick={saveCurrChapter} disabled={currCreateChapterMutation.isPending || currUpdateChapterMutation.isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">
+                          {(currCreateChapterMutation.isPending || currUpdateChapterMutation.isPending) ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement...</> : <><Plus className="mr-2 h-4 w-4" /> {currEditChapterId ? "Mettre à jour" : "Créer"}</>}
+                        </Button>
+                        {currEditChapterId && (
+                          <Button variant="outline" onClick={() => { setCurrEditChapterId(null); setCurrChapterForm({ title: "", slug: "", description: "", display_order: "0", is_published: true }) }}>
+                            <X className="mr-2 h-4 w-4" /> Annuler
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Chapter list */}
+                    <div className="space-y-3">
+                      {activeSubject?.chapters ?? [].length === 0 ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">Aucun chapitre pour l'instant.</p>
+                      ) : (
+                        activeSubject?.chapters ?? [].map((ch, i) => (
+                          <div key={ch.id} className={`flex items-center gap-4 rounded-xl border p-4 ${currSelectedChapterId === ch.id ? "border-bordeaux/40 bg-bordeaux/5" : "border-border bg-card"}`}>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bordeaux/10 text-xs font-bold text-bordeaux flex-shrink-0">{i + 1}</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-foreground">{ch.title}</p>
+                              <p className="text-xs text-muted-foreground">{ch.resource_count} ressource{ch.resource_count !== 1 ? "s" : ""} · {ch.is_published ? "Publié" : "Brouillon"}</p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => {
+                                setCurrSelectedChapterId(ch.id)
+                                setCurrTab("resources")
+                                setCurrResourceForm(p => ({ ...p, chapter_id: String(ch.id) }))
+                              }}>
+                                <FileText className="mr-1 h-3.5 w-3.5" /> Ressources
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => {
+                                setCurrEditChapterId(ch.id)
+                                setCurrChapterForm({ title: ch.title, slug: ch.slug, description: ch.description ?? "", display_order: String(ch.display_order), is_published: Boolean(ch.is_published) })
+                              }}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-300 text-red-700" onClick={() => currDeleteChapterMutation.mutate(ch.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {currTab === "resources" && (
+                  <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+                    {/* Resource form */}
+                    <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                      <h3 className="font-semibold text-foreground">{currEditResourceId ? "Modifier la ressource" : "Nouvelle ressource"}</h3>
+
+                      {/* Chapter selector */}
+                      <div className="space-y-1.5">
+                        <Label>Chapitre *</Label>
+                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={currResourceForm.chapter_id} onChange={e => { setCurrResourceForm(p => ({ ...p, chapter_id: e.target.value })); setCurrSelectedChapterId(Number(e.target.value)) }}>
+                          <option value="">Sélectionner un chapitre</option>
+                          {activeSubject?.chapters ?? [].map(ch => <option key={ch.id} value={String(ch.id)}>{ch.title}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>Type</Label>
+                          <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={currResourceForm.resource_type} onChange={e => setCurrResourceForm(p => ({ ...p, resource_type: e.target.value as ResourceType }))}>
+                            {RESOURCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        </div>
+                        {currResourceForm.resource_type === "video_lesson" && (
+                          <div className="space-y-1.5">
+                            <Label>Durée (min)</Label>
+                            <Input type="number" value={currResourceForm.duration_minutes} onChange={e => setCurrResourceForm(p => ({ ...p, duration_minutes: e.target.value }))} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label>Titre *</Label>
+                        <Input value={currResourceForm.title} onChange={e => setCurrResourceForm(p => ({ ...p, title: e.target.value }))} />
+                      </div>
+
+                      {/* File upload */}
+                      <div className="space-y-2">
+                        <Label>Fichier (PDF / Vidéo)</Label>
+                        <input ref={currFileInputRef} type="file" accept=".pdf,.mp4,.mov,.avi,.webm,.mkv,.m4v" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleCurrFileUpload(f) }} />
+                        {currResourceForm.file_url ? (
+                          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                            <span className="truncate text-emerald-800 dark:text-emerald-300">{currUploadedFileName || currResourceForm.file_url}</span>
+                            <button onClick={() => { setCurrResourceForm(p => ({ ...p, file_url: "" })); setCurrUploadedFileName("") }} className="ml-auto flex-shrink-0 text-emerald-700 hover:text-red-600"><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => currFileInputRef.current?.click()} disabled={currUploadingFile} className="flex w-full items-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground hover:border-bordeaux/40 hover:text-bordeaux transition-colors">
+                            {currUploadingFile ? <><Loader2 className="h-4 w-4 animate-spin" /> Envoi en cours...</> : <><Upload className="h-4 w-4" /> Cliquer pour uploader</>}
+                          </button>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground"><div className="h-px flex-1 bg-border" /> ou coller un lien <div className="h-px flex-1 bg-border" /></div>
+                        <Input placeholder="https://youtube.com/..." value={currResourceForm.external_url} onChange={e => setCurrResourceForm(p => ({ ...p, external_url: e.target.value, file_url: e.target.value ? "" : p.file_url }))} />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label>Description</Label>
+                        <Textarea rows={2} value={currResourceForm.description} onChange={e => setCurrResourceForm(p => ({ ...p, description: e.target.value }))} />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button onClick={saveCurrResource} disabled={currCreateResourceMutation.isPending || currUpdateResourceMutation.isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">
+                          {(currCreateResourceMutation.isPending || currUpdateResourceMutation.isPending) ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement...</> : <><Plus className="mr-2 h-4 w-4" /> {currEditResourceId ? "Mettre à jour" : "Créer"}</>}
+                        </Button>
+                        {currEditResourceId && (
+                          <Button variant="outline" onClick={() => { setCurrEditResourceId(null); setCurrResourceForm(INITIAL_RESOURCE_FORM) }}><X className="mr-2 h-4 w-4" /> Annuler</Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Resources list */}
+                    <div className="space-y-3">
+                      {/* Chapter filter pills */}
+                      <div className="flex flex-wrap gap-2">
+                        {activeSubject?.chapters ?? [].map(ch => (
+                          <button key={ch.id} onClick={() => { setCurrSelectedChapterId(ch.id); setCurrResourceForm(p => ({ ...p, chapter_id: String(ch.id) })) }}
+                            className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${currSelectedChapterId === ch.id ? "bg-bordeaux text-white border-bordeaux" : "border-border text-muted-foreground hover:border-bordeaux/40"}`}>
+                            {ch.title}
+                          </button>
+                        ))}
+                      </div>
+
+                      {isCurrResourcesLoading ? (
+                        <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-bordeaux" /></div>
+                      ) : currResources.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">Aucune ressource dans ce chapitre.</p>
+                      ) : (
+                        currResources.map(r => (
+                          <div key={r.id} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-foreground truncate">{r.title}</p>
+                              <p className="text-xs text-muted-foreground">{r.resource_type} · {r.is_published ? "Publié" : "Brouillon"}</p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => {
+                                setCurrEditResourceId(r.id)
+                                setCurrResourceForm({ chapter_id: String(r.chapter_id), resource_type: r.resource_type, title: r.title, description: r.description ?? "", file_url: r.file_url ?? "", external_url: r.external_url ?? "", duration_minutes: r.duration_minutes ? String(r.duration_minutes) : "", display_order: String(r.display_order), is_published: Boolean(r.is_published) })
+                                setCurrUploadedFileName(r.file_url ?? "")
+                              }}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-300 text-red-700" onClick={() => currDeleteResourceMutation.mutate(r.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-          <Card className="border-border/70 bg-white/85 xl:sticky xl:top-24 xl:self-start">
+          <Card className="border-border/70 bg-card xl:sticky xl:top-24 xl:self-start">
             <CardHeader>
               <CardTitle className="font-display text-2xl text-bordeaux">{editingId ? "Edit course" : "Create course"}</CardTitle>
               <CardDescription>{editingId ? "Update the course details or keep it as a draft." : "Start with a draft, then publish when the course is ready."}</CardDescription>
@@ -518,7 +919,7 @@ function TeacherWorkspacePage() {
                 <FormInput label="Hours" type="number" value={form.duration_hours} error={errors.duration_hours} onChange={(value) => setForm((prev) => ({ ...prev, duration_hours: value }))} />
               </div>
               <FormInput label="Lessons count" type="number" value={form.lessons_count} error={errors.lessons_count} onChange={(value) => setForm((prev) => ({ ...prev, lessons_count: value }))} />
-              <FormInput label="Cover image URL" value={form.cover_image} error={errors.cover_image} onChange={(value) => setForm((prev) => ({ ...prev, cover_image: value }))} placeholder="https://..." />
+              <ImageUpload label="Image de couverture" value={form.cover_image} onChange={(url) => setForm((prev) => ({ ...prev, cover_image: url }))} />
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90" onClick={() => handleSubmit(form, editingId, setErrors, createMutation.mutate, updateMutation.mutate)} disabled={isPending}>
                   {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
@@ -534,7 +935,7 @@ function TeacherWorkspacePage() {
           </Card>
 
           <div className="space-y-4">
-            <Card className="border-border/70 bg-white/85">
+            <Card className="border-border/70 bg-card">
               <CardHeader>
                 <CardTitle className="font-display text-2xl text-foreground">My courses</CardTitle>
                 <CardDescription>Your private working list includes both drafts and published courses.</CardDescription>
@@ -544,7 +945,7 @@ function TeacherWorkspacePage() {
             {isLoading ? (
               <LoadingCard />
             ) : courses.length === 0 ? (
-              <Card className="border-border/70 bg-white/85">
+              <Card className="border-border/70 bg-card">
                 <CardContent className="grid min-h-[220px] place-items-center p-8 text-center">
                   <div>
                     <BookOpen className="mx-auto h-10 w-10 text-bordeaux/70" />
@@ -556,7 +957,7 @@ function TeacherWorkspacePage() {
             ) : (
               <div className="grid gap-4 xl:grid-cols-2">
                 {courses.map((course) => (
-                  <Card key={course.id} className={`border-border/70 bg-white/85 ${selectedCourseId === course.id ? "ring-2 ring-bordeaux/20" : ""}`}>
+                  <Card key={course.id} className={`border-border/70 bg-card ${selectedCourseId === course.id ? "ring-2 ring-bordeaux/20" : ""}`}>
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -599,7 +1000,7 @@ function TeacherWorkspacePage() {
             )}
 
             {selectedCourseId ? (
-              <Card className="border-border/70 bg-white/85">
+              <Card className="border-border/70 bg-card">
                 <CardHeader>
                   <CardTitle className="font-display text-2xl text-foreground">Content studio</CardTitle>
                   <CardDescription>
@@ -640,45 +1041,145 @@ function TeacherWorkspacePage() {
                         </Card>
 
                         <Card className="border-border/70 bg-background/70">
-                          <CardHeader>
-                            <CardTitle className="text-lg text-bordeaux">{editingResourceId ? "Edit resource" : "New resource"}</CardTitle>
-                            <CardDescription>Attach PDFs, videos, exercises, or supporting links to a chapter.</CardDescription>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-lg text-bordeaux">{editingResourceId ? "Modifier la ressource" : "Nouvelle ressource"}</CardTitle>
                           </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="space-y-1.5">
-                              <Label>Chapter</Label>
-                              <select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${resourceErrors.chapter_id ? "border-destructive" : "border-input"}`} value={resourceForm.chapter_id} onChange={(event) => setResourceForm((prev) => ({ ...prev, chapter_id: event.target.value }))}>
-                                <option value="">Select a chapter</option>
-                                {(outline?.chapters ?? []).map((chapter) => <option key={chapter.id} value={chapter.id}>{chapter.title}</option>)}
-                              </select>
-                              {resourceErrors.chapter_id ? <p className="text-xs text-destructive">{resourceErrors.chapter_id}</p> : null}
+                          <CardContent className="space-y-3">
+                            {/* Chapter + Type on same row */}
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-1.5">
+                                <Label>Chapitre</Label>
+                                <select className={`flex h-9 w-full rounded-md border bg-background px-3 py-2 text-sm ${resourceErrors.chapter_id ? "border-destructive" : "border-input"}`} value={resourceForm.chapter_id} onChange={(e) => setResourceForm((p) => ({ ...p, chapter_id: e.target.value }))}>
+                                  <option value="">Sélectionner…</option>
+                                  {(outline?.chapters ?? []).map((ch) => <option key={ch.id} value={ch.id}>{ch.title}</option>)}
+                                </select>
+                                {resourceErrors.chapter_id && <p className="text-xs text-destructive">{resourceErrors.chapter_id}</p>}
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label>Type</Label>
+                                <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={resourceForm.resource_type} onChange={(e) => setResourceForm((p) => ({ ...p, resource_type: e.target.value as ResourceType }))}>
+                                  {RESOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                              </div>
                             </div>
-                            <div className="space-y-1.5">
-                              <Label>Resource type</Label>
-                              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={resourceForm.resource_type} onChange={(event) => setResourceForm((prev) => ({ ...prev, resource_type: event.target.value as ResourceType }))}>
-                                {RESOURCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                              </select>
+
+                            {/* Title */}
+                            <FormInput label="Titre" value={resourceForm.title} error={resourceErrors.title} onChange={(v) => setResourceForm((p) => ({ ...p, title: v }))} />
+
+                            {/* File upload zone */}
+                            <div className="space-y-2">
+                              <Label>Fichier (PDF / Vidéo)</Label>
+                              {/* Hidden file input */}
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".pdf,.mp4,.mov,.avi,.webm,.mkv,.m4v"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  setUploadingFile(true)
+                                  setUploadedFileName(file.name)
+                                  try {
+                                    const fd = new FormData()
+                                    fd.append("file", file)
+                                    const { data } = await api.post<{ file_url: string }>("/courses/resources/upload", fd, { headers: { "Content-Type": "multipart/form-data" } })
+                                    setResourceForm((p) => ({ ...p, file_url: data.file_url, external_url: "" }))
+                                    toast.success("Fichier uploadé avec succès")
+                                  } catch {
+                                    toast.error("Erreur lors de l'upload du fichier")
+                                    setUploadedFileName("")
+                                  } finally {
+                                    setUploadingFile(false)
+                                    if (fileInputRef.current) fileInputRef.current.value = ""
+                                  }
+                                }}
+                              />
+
+                              {/* Drop zone */}
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadingFile}
+                                className={`w-full rounded-lg border-2 border-dashed p-5 text-center transition-colors focus:outline-none ${
+                                  resourceForm.file_url && !resourceForm.file_url.startsWith("http")
+                                    ? "border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+                                    : "border-border hover:border-bordeaux/50 hover:bg-bordeaux/5"
+                                }`}
+                              >
+                                {uploadingFile ? (
+                                  <div className="flex flex-col items-center gap-2 text-bordeaux">
+                                    <Loader2 className="h-7 w-7 animate-spin" />
+                                    <span className="text-sm font-medium">Upload en cours…</span>
+                                  </div>
+                                ) : resourceForm.file_url && !resourceForm.file_url.startsWith("http") ? (
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <FileText className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+                                      <span className="text-sm font-medium text-emerald-700 truncate">
+                                        {uploadedFileName || resourceForm.file_url.split("/").pop()}
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); setResourceForm((p) => ({ ...p, file_url: "" })); setUploadedFileName("") }}
+                                      className="flex-shrink-0 rounded-full p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                                    <Upload className="h-7 w-7" />
+                                    <span className="text-sm font-medium">Cliquer pour sélectionner un fichier</span>
+                                    <span className="text-xs opacity-70">PDF · MP4 · MOV · WebM — max 200 Mo</span>
+                                  </div>
+                                )}
+                              </button>
+
+                              {/* OR divider + external URL */}
+                              <div className="flex items-center gap-2 pt-1">
+                                <div className="flex-1 h-px bg-border" />
+                                <span className="text-xs text-muted-foreground">ou coller un lien</span>
+                                <div className="flex-1 h-px bg-border" />
+                              </div>
+                              <FormInput
+                                label=""
+                                value={resourceForm.external_url}
+                                error={resourceErrors.external_url}
+                                placeholder="https://youtube.com/watch?v=… ou Google Drive…"
+                                onChange={(v) => {
+                                  setResourceForm((p) => ({ ...p, external_url: v, file_url: v ? "" : p.file_url }))
+                                  if (v) setUploadedFileName("")
+                                }}
+                              />
+                              {resourceErrors.source && <p className="text-xs text-destructive">{resourceErrors.source}</p>}
                             </div>
-                            <FormInput label="Title" value={resourceForm.title} error={resourceErrors.title} onChange={(value) => setResourceForm((prev) => ({ ...prev, title: value }))} />
-                            <div className="space-y-1.5">
-                              <Label>Description</Label>
-                              <Textarea value={resourceForm.description} onChange={(event) => setResourceForm((prev) => ({ ...prev, description: event.target.value }))} className={resourceErrors.description ? "border-destructive" : undefined} rows={3} />
-                              {resourceErrors.description ? <p className="text-xs text-destructive">{resourceErrors.description}</p> : null}
+
+                            {/* Duration (only for video) + Display order */}
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {resourceForm.resource_type === "video_lesson" && (
+                                <FormInput label="Durée (min)" type="number" value={resourceForm.duration_minutes} error={resourceErrors.duration_minutes} onChange={(v) => setResourceForm((p) => ({ ...p, duration_minutes: v }))} />
+                              )}
+                              <FormInput label="Ordre" type="number" value={resourceForm.display_order} error={resourceErrors.display_order} onChange={(v) => setResourceForm((p) => ({ ...p, display_order: v }))} />
                             </div>
-                            <FormInput label="File URL" value={resourceForm.file_url} error={resourceErrors.file_url} onChange={(value) => setResourceForm((prev) => ({ ...prev, file_url: value }))} placeholder="https://..." />
-                            <FormInput label="External URL" value={resourceForm.external_url} error={resourceErrors.external_url} onChange={(value) => setResourceForm((prev) => ({ ...prev, external_url: value }))} placeholder="https://..." />
-                            {resourceErrors.source ? <p className="text-xs text-destructive">{resourceErrors.source}</p> : null}
-                            <div className="grid gap-4 sm:grid-cols-2">
-                              <FormInput label="Duration (min)" type="number" value={resourceForm.duration_minutes} error={resourceErrors.duration_minutes} onChange={(value) => setResourceForm((prev) => ({ ...prev, duration_minutes: value }))} />
-                              <FormInput label="Display order" type="number" value={resourceForm.display_order} error={resourceErrors.display_order} onChange={(value) => setResourceForm((prev) => ({ ...prev, display_order: value }))} />
-                            </div>
-                            <ToggleField label="Published" checked={resourceForm.is_published} onChange={(checked) => setResourceForm((prev) => ({ ...prev, is_published: checked }))} />
-                            <div className="flex flex-wrap gap-3 pt-2">
-                              <Button className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90" disabled={createResourceMutation.isPending || updateResourceMutation.isPending || !outline?.chapters.length} onClick={() => handleResourceSubmit(resourceForm, editingResourceId, setResourceErrors, createResourceMutation.mutate, updateResourceMutation.mutate)}>
+
+                            <ToggleField label="Publié" checked={resourceForm.is_published} onChange={(checked) => setResourceForm((p) => ({ ...p, is_published: checked }))} />
+
+                            <div className="flex flex-wrap gap-3 pt-1">
+                              <Button
+                                className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
+                                disabled={createResourceMutation.isPending || updateResourceMutation.isPending || !outline?.chapters.length || uploadingFile}
+                                onClick={() => handleResourceSubmit(resourceForm, editingResourceId, setResourceErrors, createResourceMutation.mutate, updateResourceMutation.mutate)}
+                              >
                                 {createResourceMutation.isPending || updateResourceMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                                {editingResourceId ? "Save resource" : "Add resource"}
+                                {editingResourceId ? "Enregistrer" : "Ajouter"}
                               </Button>
-                              {editingResourceId ? <Button variant="outline" className="border-bordeaux text-bordeaux" onClick={() => resetResourceForm(setResourceForm, setEditingResourceId, setResourceErrors, outline?.chapters[0]?.id)}>Cancel</Button> : null}
+                              {editingResourceId && (
+                                <Button variant="outline" className="border-bordeaux text-bordeaux" onClick={() => { resetResourceForm(setResourceForm, setEditingResourceId, setResourceErrors, outline?.chapters[0]?.id); setUploadedFileName("") }}>
+                                  Annuler
+                                </Button>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -763,7 +1264,7 @@ function TeacherWorkspacePage() {
             ) : null}
 
             {selectedCourseId ? (
-              <Card className="border-border/70 bg-white/85">
+              <Card className="border-border/70 bg-card">
                 <CardHeader>
                   <CardTitle className="font-display text-2xl text-foreground">Students & analytics</CardTitle>
                   <CardDescription>
@@ -843,7 +1344,7 @@ function TeacherWorkspacePage() {
               </Card>
             ) : null}
 
-            <Card className="border-border/70 bg-white/85">
+            <Card className="border-border/70 bg-card">
               <CardHeader>
                 <CardTitle className="font-display text-2xl text-foreground">Session studio</CardTitle>
                 <CardDescription>Create and manage your free Google Meet lives and video sessions from the same workspace.</CardDescription>
@@ -904,7 +1405,7 @@ function TeacherWorkspacePage() {
                       <FormInput label="Date and time" type="datetime-local" value={eventForm.event_date} error={eventErrors.event_date} onChange={(value) => setEventForm((prev) => ({ ...prev, event_date: value }))} />
                       {eventForm.delivery_type === "google_meet" ? <FormInput label="Seats" type="number" value={eventForm.seats_total} error={eventErrors.seats_total} onChange={(value) => setEventForm((prev) => ({ ...prev, seats_total: value }))} /> : null}
                       <div className="flex flex-wrap gap-3 pt-2">
-                        <Button className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90" disabled={createEventMutation.isPending || updateEventMutation.isPending} onClick={() => handleEventSubmit(eventForm, editingEventId, setEventErrors, createEventMutation.mutate, updateEventMutation.mutate)}>
+                        <Button className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90" disabled={createEventMutation.isPending || updateEventMutation.isPending} onClick={() => handleEventSubmit(eventForm, editingEventId, setEventErrors, createEventMutation.mutate, updateEventMutation.mutate, courses)}>
                           {createEventMutation.isPending || updateEventMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                           {editingEventId ? "Save session" : "Create session"}
                         </Button>
@@ -1018,7 +1519,7 @@ function validateCourseForm(form: CourseForm) {
   if (!isNonNegativeInteger(form.lessons_count)) {
     errors.lessons_count = "Le nombre de lecons doit etre superieur ou egal a 0."
   }
-  if (!isBlank(form.cover_image) && !isValidUrl(form.cover_image)) {
+  if (!isBlank(form.cover_image) && !isValidUrl(form.cover_image) && !form.cover_image.startsWith("/uploads/")) {
     errors.cover_image = "L'URL de l'image de couverture est invalide."
   }
 
@@ -1137,7 +1638,8 @@ function validateResourceForm(form: ResourceForm) {
   if (!isBlank(form.description) && !hasMinLength(form.description, 10)) {
     errors.description = "La description doit contenir au moins 10 caracteres."
   }
-  if (!isBlank(form.file_url) && !isValidUrl(form.file_url)) {
+  // Accept both full URLs (https://…) and local upload paths (/uploads/…)
+  if (!isBlank(form.file_url) && !isValidUrl(form.file_url) && !form.file_url.startsWith("/uploads/")) {
     errors.file_url = "L'URL du fichier est invalide."
   }
   if (!isBlank(form.external_url) && !isValidUrl(form.external_url)) {
@@ -1208,6 +1710,7 @@ function handleEventSubmit(
   setErrors: React.Dispatch<React.SetStateAction<FormErrors<keyof EventForm & string>>>,
   createEvent: () => void,
   updateEvent: (payload: { id: number; data: Record<string, unknown> }) => void,
+  courses: Course[],
 ) {
   const nextErrors = validateEventForm(form)
   setErrors(nextErrors)
@@ -1217,7 +1720,7 @@ function handleEventSubmit(
   }
 
   if (editingId) {
-    updateEvent({ id: editingId, data: eventPayload(form) })
+    updateEvent({ id: editingId, data: eventPayload(form, courses) })
     return
   }
 
@@ -1439,7 +1942,7 @@ function LoadingState({ message }: { message: string }) {
 
 function LoadingCard() {
   return (
-    <Card className="border-border/70 bg-white/85">
+    <Card className="border-border/70 bg-card">
       <CardContent className="flex min-h-[220px] items-center justify-center p-8 text-muted-foreground">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading courses...
       </CardContent>

@@ -1,7 +1,11 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, ChevronRight, CircleCheckBig, Loader2, TrendingUp, UserRound } from "lucide-react";
+import { BookOpen, CircleCheckBig, CreditCard, Loader2, TrendingUp, UserRound } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend,
+} from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +14,20 @@ import api from "@/lib/api";
 import { formatAcademicTrack } from "@/lib/academic";
 import { isAuthenticated } from "@/lib/auth";
 import type { ParentChildProgressResponse, ParentChildSummary } from "@/lib/types";
+
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs shadow-elegant">
+      {label && <p className="font-semibold text-foreground mb-1">{label}</p>}
+      {payload.map((p: any) => (
+        <p key={p.name} style={{ color: p.color }} className="font-medium">
+          {p.name}: <span className="text-foreground">{p.value}{p.unit ?? ""}</span>
+        </p>
+      ))}
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/parent")({
   beforeLoad: () => {
@@ -119,6 +137,37 @@ function ParentPage() {
           <Card className="border-border/70 bg-white/85"><CardContent className="p-5"><p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Average progress</p><p className="mt-3 font-display text-4xl font-bold text-bordeaux">{summary.avgProgress}%</p></CardContent></Card>
         </div>
 
+        {/* Children comparison bar chart */}
+        {!isLoading && children.length > 0 && (
+          <Card className="border-border/70 bg-white/85">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display text-xl text-foreground">Progress comparison</CardTitle>
+              <CardDescription>All linked children — enrolled courses vs completed</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={children.map((c) => ({
+                    name: c.first_name,
+                    Enrolled: Number(c.enrolled_courses),
+                    Completed: Number(c.completed_courses),
+                    Progress: Number(c.avg_progress),
+                  }))}
+                  margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.91 0.015 60)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="Enrolled"  fill="oklch(0.78 0.13 82)" radius={[4,4,0,0]} maxBarSize={28} />
+                  <Bar dataKey="Completed" fill="oklch(0.36 0.13 18)" radius={[4,4,0,0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
         {isLoading ? (
           <LoadingState message="Loading linked children..." />
         ) : children.length === 0 ? (
@@ -153,6 +202,22 @@ function ParentPage() {
                       <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Done</div><div className="mt-1 font-semibold text-bordeaux">{child.completed_courses}</div></div>
                       <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Progress</div><div className="mt-1 font-semibold text-bordeaux">{child.avg_progress}%</div></div>
                     </div>
+                    {/* Subscription badge */}
+                    <div className="mt-3 flex items-center gap-2">
+                      <CreditCard className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      {child.active_plan ? (
+                        <span className="text-xs text-muted-foreground">
+                          <span className="capitalize font-medium text-bordeaux">{child.active_plan}</span>
+                          {" · "}until {new Date(child.active_end_date!).toLocaleDateString()}
+                          {" · "}
+                          <span className={child.active_days_remaining! <= 7 ? "text-amber-700 font-medium" : ""}>
+                            {child.active_days_remaining} day{child.active_days_remaining !== 1 ? "s" : ""} left
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No active subscription</span>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -185,6 +250,30 @@ function ParentPage() {
                           <div className="rounded-xl border border-border/70 bg-white px-4 py-3 text-center"><div className="text-xs text-muted-foreground">Avg progress</div><div className="mt-1 font-semibold text-bordeaux">{childProgress.stats.avg_progress}%</div></div>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Subscription detail */}
+                    <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-bordeaux mb-3">
+                        <CreditCard className="h-4 w-4" /> Subscription
+                      </div>
+                      {childProgress.subscription ? (
+                        (() => {
+                          const sub = childProgress.subscription!;
+                          const daysLeft = Math.max(0, Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / 86_400_000));
+                          const cycleLabel = sub.billing_cycle === "1_month" ? "1 month" : sub.billing_cycle === "3_months" ? "3 months" : "1 year";
+                          return (
+                            <div className="grid gap-3 sm:grid-cols-4">
+                              <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">Plan</div><div className="mt-1 text-sm font-semibold capitalize text-bordeaux">{sub.plan}</div></div>
+                              <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">Duration</div><div className="mt-1 text-sm font-semibold text-foreground">{cycleLabel}</div></div>
+                              <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">From → Until</div><div className="mt-1 text-xs font-semibold text-foreground">{new Date(sub.start_date).toLocaleDateString()} → {new Date(sub.end_date).toLocaleDateString()}</div></div>
+                              <div className={`rounded-xl border px-3 py-2.5 text-center ${daysLeft <= 7 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}><div className="text-xs text-muted-foreground">Days left</div><div className={`mt-1 text-sm font-bold ${daysLeft <= 7 ? "text-amber-700" : "text-emerald-700"}`}>{daysLeft}</div></div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <p className="text-sm text-muted-foreground">This child has no active subscription.</p>
+                      )}
                     </div>
 
                     {childProgress.enrollments.length === 0 ? (

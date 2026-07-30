@@ -1,10 +1,11 @@
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const db     = require('../config/db');
 const { normalizeAcademicFields } = require('../utils/academic');
 const { handleValidationErrors } = require('../utils/validation');
-const { sendPasswordResetEmail } = require('../utils/mailer');
+const { sendPasswordResetEmail, sendWelcomeEmail } = require('../utils/mailer');
 
 const PASSWORD_RESET_TTL_MINUTES = Number(process.env.PASSWORD_RESET_CODE_TTL_MINUTES || 15);
 const PASSWORD_RESET_RESEND_COOLDOWN_SECONDS = Number(process.env.PASSWORD_RESET_RESEND_COOLDOWN_SECONDS || 60);
@@ -31,7 +32,7 @@ function shouldThrottleResetRequest(lastRequestedAt) {
 async function register(req, res) {
   if (handleValidationErrors(req, res)) return;
 
-  const { first_name, last_name, age, email, password, role, college } = req.body;
+  const { first_name, last_name, age, email, password, role, college, phone } = req.body;
   const academicFields = normalizeAcademicFields(req.body);
 
   const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
@@ -46,6 +47,7 @@ async function register(req, res) {
       last_name,
       age,
       email,
+      phone,
       password_hash,
       role,
       college,
@@ -54,12 +56,13 @@ async function register(req, res) {
       grade_code,
       section_code
     )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       first_name,
       last_name,
       age || null,
       email,
+      phone || null,
       password_hash,
       safeRole,
       college || null,
@@ -75,6 +78,11 @@ async function register(req, res) {
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
+
+  // Fire-and-forget welcome email — don't let a mailer failure block registration
+  sendWelcomeEmail({ to: email, firstName: first_name }).catch((err) => {
+    console.error('[mailer] Welcome email failed:', err.message);
+  });
 
   return res.status(201).json({ message: 'Compte cree.', token });
 }
@@ -199,11 +207,65 @@ async function resetPassword(req, res) {
 // GET /api/auth/me
 async function me(req, res) {
   const [rows] = await db.query(
-    'SELECT id, first_name, last_name, age, email, role, college, year_of_study, school_cycle, grade_code, section_code, avatar_url, created_at FROM users WHERE id = ?',
+    'SELECT id, first_name, last_name, age, email, phone, role, college, year_of_study, school_cycle, grade_code, section_code, avatar_url, created_at FROM users WHERE id = ?',
     [req.user.id]
   );
   if (!rows[0]) return res.status(404).json({ message: 'Utilisateur introuvable.' });
   return res.json(rows[0]);
 }
 
-module.exports = { register, login, requestPasswordReset, resetPassword, me };
+// POST /api/auth/google
+async function googleAuth(req, res) {
+  const { credential } = req.body;
+  if (!credential) return res.status(400).json({ message: 'Token Google manquant.' });
+
+  const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch {
+    return res.status(401).json({ message: 'Token Google invalide.' });
+  }
+
+  const { email, given_name: firstName = '', family_name: lastName = '', picture } = payload;
+  if (!email) return res.status(400).json({ message: 'Email Google introuvable.' });
+
+  const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+  let user = rows[0];
+
+  if (user) {
+    if (!user.is_active) return res.status(403).json({ message: 'Ce compte est desactive.' });
+    // Update avatar if not set
+    if (!user.avatar_url && picture) {
+      await db.query('UPDATE users SET avatar_url = ? WHERE id = ?', [picture, user.id]);
+      user.avatar_url = picture;
+    }
+  } else {
+    // Create new account (student by default)
+    const [result] = await db.query(
+      `INSERT INTO users (first_name, last_name, email, password_hash, role, avatar_url)
+       VALUES (?, ?, ?, '', 'student', ?)`,
+      [firstName, lastName, email, picture || null]
+    );
+    const [newRows] = await db.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
+    user = newRows[0];
+    sendWelcomeEmail({ to: email, firstName }).catch((err) => {
+      console.error('[mailer] Welcome email (google) failed:', err.message);
+    });
+  }
+
+  const token = jwt.sign(
+    { id: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
+
+  const { password_hash: _, ...safeUser } = user;
+  return res.json({ token, user: safeUser });
+}
+
+module.exports = { register, login, requestPasswordReset, resetPassword, me, googleAuth };

@@ -1,14 +1,21 @@
 const db = require('../config/db');
 const { handleValidationErrors } = require('../utils/validation');
+const { getCache, setCache, invalidateCache } = require('../utils/cache');
+
+const CACHE_KEY_TEAM = 'team:public';
 
 // GET /api/team
 async function getAll(_req, res) {
+  const cached = getCache(CACHE_KEY_TEAM);
+  if (cached) return res.json(cached);
+
   const [rows] = await db.query(
     `SELECT *
      FROM team_members
      WHERE is_active = 1
      ORDER BY display_order ASC, created_at ASC`
   );
+  setCache(CACHE_KEY_TEAM, rows, 120); // 2-minute TTL
   res.json(rows);
 }
 
@@ -45,6 +52,7 @@ async function create(req, res) {
       is_active === undefined ? 1 : is_active,
     ]
   );
+  invalidateCache(CACHE_KEY_TEAM);
   res.status(201).json({ message: 'Membre de l\'equipe cree.', id: result.insertId });
 }
 
@@ -70,6 +78,7 @@ async function update(req, res) {
 
   params.push(req.params.id);
   await db.query(`UPDATE team_members SET ${updates.join(', ')} WHERE id = ?`, params);
+  invalidateCache(CACHE_KEY_TEAM);
   res.json({ message: 'Membre de l\'equipe mis a jour.' });
 }
 
@@ -77,6 +86,7 @@ async function update(req, res) {
 async function remove(req, res) {
   const [result] = await db.query('DELETE FROM team_members WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Membre de l\'equipe introuvable.' });
+  invalidateCache(CACHE_KEY_TEAM);
   res.json({ message: 'Membre de l\'equipe supprime.' });
 }
 

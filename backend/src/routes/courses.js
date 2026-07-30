@@ -1,10 +1,48 @@
 const router   = require('express').Router();
 const { body } = require('express-validator');
+const path     = require('path');
+const fs       = require('fs');
+const multer   = require('multer');
 const ctrl     = require('../controllers/courseController');
+const quiz     = require('../controllers/quizController');
 const auth     = require('../middleware/auth');
 const authorize = require('../middleware/roles');
 const { requireActiveSubscription } = require('../middleware/subscriptionAccess');
 const { isHexColor, isHttpUrl, isSlug } = require('../utils/validation');
+
+// ── File upload (multer) ────────────────────────────────────────────────────
+const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'resources');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const fileStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext  = path.extname(file.originalname).toLowerCase();
+    const name = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    cb(null, name);
+  },
+});
+
+const fileUpload = multer({
+  storage: fileStorage,
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
+  fileFilter: (_req, file, cb) => {
+    const allowedExtensions = /\.(pdf|mp4|mov|avi|webm|mkv|m4v)$/i;
+    const allowedMimeTypes = [
+      'application/pdf',
+      'video/mp4',
+      'video/quicktime',      // .mov
+      'video/x-msvideo',      // .avi
+      'video/webm',
+      'video/x-matroska',     // .mkv
+      'video/x-m4v',          // .m4v
+    ];
+    if (allowedExtensions.test(file.originalname) && allowedMimeTypes.includes(file.mimetype)) {
+      return cb(null, true);
+    }
+    cb(new Error('Seuls les fichiers PDF et vidéo sont autorisés.'));
+  },
+});
 
 const subjectCreateValidators = [
   body('name').trim().isLength({ min: 2 }).withMessage('Le nom de la matiere doit contenir au moins 2 caracteres.'),
@@ -216,10 +254,31 @@ const teacherResourceUpdateValidators = [
   body('is_published').optional().isIn([0, 1, '0', '1', true, false]).withMessage('Le statut de publication est invalide.'),
 ];
 
-router.get('/admin/curriculum', auth, authorize('admin'), ctrl.adminGetCurriculum);
+// ── Admin: teacher assignments ──────────────────────────────────────────────
+router.get('/admin/teacher-assignments',        auth, authorize('admin'), ctrl.adminGetTeacherAssignments);
+router.post('/admin/teacher-assignments',       auth, authorize('admin'), ctrl.adminCreateTeacherAssignment);
+router.delete('/admin/teacher-assignments/:id', auth, authorize('admin'), ctrl.adminDeleteTeacherAssignment);
+router.get('/admin/unassigned-teachers',        auth, authorize('admin'), ctrl.adminGetUnassignedTeachers);
+router.get('/admin/track-subjects-list',        auth, authorize('admin'), ctrl.adminGetTrackSubjectsList);
+
+// ── Teacher: curriculum routes ──────────────────────────────────────────────
+router.get('/teacher/my-subject',                auth, authorize('teacher'), ctrl.teacherGetMySubject);
+router.post('/teacher/chapters',                 auth, authorize('teacher'), ctrl.teacherCreateChapter);
+router.put('/teacher/chapters/:id',              auth, authorize('teacher'), ctrl.teacherUpdateChapter);
+router.delete('/teacher/chapters/:id',           auth, authorize('teacher'), ctrl.teacherDeleteChapter);
+router.get('/teacher/chapters/:id/resources',    auth, authorize('teacher'), ctrl.teacherGetResources);
+router.post('/teacher/resources',                auth, authorize('teacher'), ctrl.teacherCreateResource);
+router.put('/teacher/resources/:id',             auth, authorize('teacher'), ctrl.teacherUpdateResource);
+router.delete('/teacher/resources/:id',          auth, authorize('teacher'), ctrl.teacherDeleteResource);
+
+router.get('/admin/curriculum',           auth, authorize('admin'), ctrl.adminGetCurriculum);
+router.put('/admin/tracks/:id',          auth, authorize('admin'), ctrl.adminUpdateTrack);
+router.delete('/admin/tracks/:id',       auth, authorize('admin'), ctrl.adminDeleteTrack);
+router.patch('/admin/tracks/:id/toggle', auth, authorize('admin'), ctrl.adminToggleTrack);
 router.post('/admin/subjects', auth, authorize('admin'), subjectCreateValidators, ctrl.adminCreateSubject);
 router.put('/admin/subjects/:id', auth, authorize('admin'), subjectUpdateValidators, ctrl.adminUpdateSubject);
 router.delete('/admin/subjects/:id', auth, authorize('admin'), ctrl.adminDeleteSubject);
+router.patch('/admin/subjects/:id/toggle', auth, authorize('admin'), ctrl.adminToggleSubject);
 
 router.post('/admin/track-subjects', auth, authorize('admin'), trackSubjectCreateValidators, ctrl.adminCreateTrackSubject);
 router.put('/admin/track-subjects/:id', auth, authorize('admin'), trackSubjectUpdateValidators, ctrl.adminUpdateTrackSubject);
@@ -233,14 +292,29 @@ router.post('/admin/resources', auth, authorize('admin'), resourceCreateValidato
 router.put('/admin/resources/:id', auth, authorize('admin'), resourceUpdateValidators, ctrl.adminUpdateResource);
 router.delete('/admin/resources/:id', auth, authorize('admin'), ctrl.adminDeleteResource);
 
+router.get('/stats/me',    auth, ctrl.getMyStats);
+router.get('/progress/me', auth, requireActiveSubscription, ctrl.getMyProgress);
 router.get('/subjects/me', auth, requireActiveSubscription, ctrl.getMySubjects);
 router.get('/subjects/:subjectSlug/chapters', auth, requireActiveSubscription, ctrl.getSubjectChapters);
 router.get('/subjects/:subjectSlug/chapters/:chapterSlug', auth, requireActiveSubscription, ctrl.getChapterDetail);
+router.post('/resources/:id/complete',  auth, ctrl.markResourceComplete);
+router.delete('/resources/:id/complete', auth, ctrl.unmarkResourceComplete);
+
+// ── Chapter quizzes ─────────────────────────────────────────────
+router.get('/chapters/:chapterId/quiz',         auth, requireActiveSubscription, quiz.getChapterQuiz);
+router.post('/chapters/:chapterId/quiz/submit',  auth, requireActiveSubscription, quiz.submitChapterQuiz);
+// Admin question bank + Khlayel draft generation
+router.get('/admin/quiz-questions',    auth, authorize('admin'), quiz.adminListQuestions);
+router.post('/admin/quiz-questions',   auth, authorize('admin'), quiz.adminCreateQuestion);
+router.put('/admin/quiz-questions/:id', auth, authorize('admin'), quiz.adminUpdateQuestion);
+router.delete('/admin/quiz-questions/:id', auth, authorize('admin'), quiz.adminDeleteQuestion);
+router.post('/admin/quiz-generate',    auth, authorize('admin'), quiz.adminGenerateQuiz);
 router.get('/',                auth, requireActiveSubscription, ctrl.getAll);
 router.get('/my-enrollments',  auth, requireActiveSubscription, ctrl.myEnrollments);
-router.get('/:id/outline', auth, authorize('teacher','admin'), ctrl.getTeacherOutline);
+router.get('/:id/outline',  auth, authorize('teacher','admin'), ctrl.getTeacherOutline);
 router.get('/:id/students', auth, authorize('teacher','admin'), ctrl.getTeacherStudents);
-router.get('/:id',             auth, requireActiveSubscription, ctrl.getOne);
+router.get('/:id/content',  auth, authorize('student'), requireActiveSubscription, ctrl.getCourseContent);
+router.get('/:id',          auth, requireActiveSubscription, ctrl.getOne);
 
 router.post('/',
   auth, authorize('teacher','admin'),
@@ -248,15 +322,26 @@ router.post('/',
   ctrl.create
 );
 router.post('/:id/chapters', auth, authorize('teacher','admin'), teacherChapterCreateValidators, ctrl.createCourseChapter);
+// Upload a PDF or video file → returns { file_url, original_name, size_bytes }
+router.post('/resources/upload',
+  auth, authorize('teacher', 'admin'),
+  fileUpload.single('file'),
+  (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu.' });
+    res.json({
+      file_url:      `/uploads/resources/${req.file.filename}`,
+      original_name: req.file.originalname,
+      size_bytes:    req.file.size,
+    });
+  }
+);
+
 router.post('/:id/resources', auth, authorize('teacher','admin'), teacherResourceCreateValidators, ctrl.createCourseResource);
 
-router.put('/:id',  auth, authorize('teacher','admin'), flatCourseUpdateValidators, ctrl.update);
 router.put('/chapters/:chapterId', auth, authorize('teacher','admin'), teacherChapterUpdateValidators, ctrl.updateCourseChapter);
 router.put('/resources/:resourceId', auth, authorize('teacher','admin'), teacherResourceUpdateValidators, ctrl.updateCourseResource);
-router.delete('/:id', auth, authorize('teacher','admin'), ctrl.remove);
+router.put('/:id',  auth, authorize('teacher','admin'), flatCourseUpdateValidators, ctrl.update);
 router.delete('/chapters/:chapterId', auth, authorize('teacher','admin'), ctrl.deleteCourseChapter);
 router.delete('/resources/:resourceId', auth, authorize('teacher','admin'), ctrl.deleteCourseResource);
-
-router.post('/:id/enroll', auth, authorize('student'), requireActiveSubscription, ctrl.enroll);
 
 module.exports = router;

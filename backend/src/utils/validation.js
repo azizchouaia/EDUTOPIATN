@@ -29,10 +29,9 @@ function isHexColor(value) {
 
 function isHttpUrl(value) {
   const rawValue = String(value || '').trim();
-  if (!rawValue) {
-    return false;
-  }
-
+  if (!rawValue) return false;
+  // Accept local upload paths (/uploads/…) stored by the file upload endpoint
+  if (rawValue.startsWith('/uploads/')) return true;
   try {
     const parsed = new URL(rawValue);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';

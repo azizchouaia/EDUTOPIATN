@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CalendarDays, ChevronRight, MessageSquare, ReceiptText, Shield, ShoppingBag, TicketPercent, Users, UsersRound } from "lucide-react";
+import { BookOpen, BrainCircuit, CalendarDays, ChevronRight, ClipboardCheck, MessageSquare, ReceiptText, Shield, ShoppingBag, TicketPercent, Users, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useMe } from "@/hooks/useAuth";
@@ -17,6 +17,8 @@ export const ADMIN_MODULES = [
   { to: "/admin/subscriptions", label: "Subscriptions", icon: UsersRound },
   { to: "/admin/reclamations", label: "Reclamations", icon: MessageSquare },
   { to: "/admin/team", label: "Team", icon: UsersRound },
+  { to: "/admin/quizzes", label: "Quiz", icon: ClipboardCheck },
+  { to: "/admin/khlayel", label: "Khlayel AI", icon: BrainCircuit },
 ] as const;
 
 export const Route = createFileRoute("/admin")({
@@ -48,7 +50,7 @@ export function AdminPageIntro({
   children?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[2rem] border border-border/60 bg-white/80 p-6 shadow-[0_20px_80px_rgba(122,19,37,0.08)] backdrop-blur md:p-8">
+    <section className="rounded-[2rem] border border-border/60 bg-card p-6 shadow-[0_20px_80px_rgba(122,19,37,0.08)] md:p-8">
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-bordeaux">
@@ -136,7 +138,7 @@ function AdminLayout() {
         </div>
 
         <aside className="xl:sticky xl:top-24 xl:self-start">
-          <div className="rounded-[2rem] border border-border/70 bg-white/85 p-5 shadow-[0_20px_70px_rgba(122,19,37,0.08)] backdrop-blur">
+          <div className="rounded-[2rem] border border-border/70 bg-card p-5 shadow-[0_20px_70px_rgba(122,19,37,0.08)]">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Modules</p>

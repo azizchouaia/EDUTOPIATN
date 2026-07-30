@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { GoogleLogin } from "@react-oauth/google";
+import { OtpInput, useCountdown } from "@/components/OtpInput";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,12 +9,17 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useLogin, useRegister, useRequestPasswordReset, useResetPassword } from "@/hooks/useAuth";
 import { GRADE_CODES, GRADE_OPTIONS, SECTION_CODES, SECTION_OPTIONS, needsSection } from "@/lib/academic";
-import { getStoredUser, isAuthenticated } from "@/lib/auth";
+import { getStoredUser, isAuthenticated, saveAuth } from "@/lib/auth";
+import { useLanguage } from "@/lib/i18n";
+import api from "@/lib/api";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: (search.tab as string | undefined) ?? "signin",
+  }),
   head: () => ({
     meta: [
       { title: "Sign in — Edutopia" },
@@ -31,6 +38,7 @@ const signupSchema = z.object({
   first_name: z.string().trim().min(2, "Le prenom doit contenir au moins 2 caracteres"),
   last_name: z.string().trim().min(2, "Le nom doit contenir au moins 2 caracteres"),
   email: z.string().trim().email("Saisissez une adresse e-mail valide"),
+  phone: z.string().trim().regex(/^\+?[0-9 ]{8,15}$/, "Saisissez un numero de telephone valide"),
   password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caracteres"),
   role: z.enum(["student", "teacher", "parent"]),
   grade_code: z.enum(GRADE_CODES).optional().or(z.literal("")),
@@ -71,9 +79,98 @@ function getPostAuthPath(role: "admin" | "teacher" | "student" | "parent") {
   return "/dashboard"
 }
 
+function PasswordInput({ id, placeholder, registration, autoComplete }: { id: string; placeholder: string; registration: any; autoComplete?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={show ? "text" : "password"}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        className="pr-10"
+        {...registration}
+      />
+      <button
+        type="button"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+        onClick={() => setShow((v) => !v)}
+        tabIndex={-1}
+        aria-label={show ? "Hide password" : "Show password"}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
+function ResetConfirmForm(props: {
+  form: any;
+  countdown: any;
+  t: any;
+  onSubmit: any;
+  isPending: boolean;
+  onResend: any;
+  onBack: any;
+}) {
+  const { form, countdown, t, onSubmit, isPending, onResend, onBack } = props;
+  const pwdPlaceholder = "••••••••";
+  return (
+    <form className="mt-8 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+      <div className="space-y-1.5">
+        <Label htmlFor="reset-email-confirm">{t("login_email")}</Label>
+        <Input id="reset-email-confirm" type="email" placeholder="you@edutopia.com" autoComplete="email" {...form.register("email")} />
+        {form.formState.errors.email ? <p className="text-xs text-destructive">{String(form.formState.errors.email.message)}</p> : null}
+      </div>
+      <div className="space-y-2">
+        <Label>{t("login_reset_code")}</Label>
+        <OtpInput
+          value={form.watch("code")}
+          onChange={(v: string) => { form.setValue("code", v, { shouldValidate: true }); }}
+        />
+        {form.formState.errors.code ? <p className="text-xs text-destructive text-center">{String(form.formState.errors.code.message)}</p> : null}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="reset-password">{t("login_new_password")}</Label>
+        <PasswordInput id="reset-password" placeholder={pwdPlaceholder} autoComplete="new-password" registration={form.register("password")} />
+        {form.formState.errors.password ? <p className="text-xs text-destructive">{String(form.formState.errors.password.message)}</p> : null}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="reset-confirm">{t("login_confirm_pw")}</Label>
+        <PasswordInput id="reset-confirm" placeholder={pwdPlaceholder} autoComplete="new-password" registration={form.register("confirm")} />
+        {form.formState.errors.confirm ? <p className="text-xs text-destructive">{String(form.formState.errors.confirm.message)}</p> : null}
+      </div>
+      <Button type="submit" disabled={isPending} className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11">
+        {isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("login_resetting")}</> : t("login_reset_btn")}
+      </Button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Button type="button" variant="outline" disabled={countdown.active} className="border-bordeaux text-bordeaux hover:bg-bordeaux/5 disabled:opacity-60" onClick={onResend}>
+          {countdown.active ? t("login_resend") + " (" + String(countdown.remaining) + "s)" : t("login_resend")}
+        </Button>
+        <Button type="button" variant="outline" className="border-bordeaux text-bordeaux hover:bg-bordeaux/5" onClick={onBack}>
+          {t("login_back_signin")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function LoginPage() {
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
+  const { t, isRTL } = useLanguage();
+  const { tab } = Route.useSearch();
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">(
+    tab === "signup" ? "signup" : "signin"
+  );
   const [resetStep, setResetStep] = useState<"request" | "confirm">("request");
+  const [animKey, setAnimKey] = useState(0);
+  const [googlePending, setGooglePending] = useState(false);
+
+  function switchMode(next: "signin" | "signup" | "forgot") {
+    setMode(next);
+    setAnimKey((k) => k + 1);
+  }
+
+  const countdown = useCountdown(60);
 
   const loginMutation    = useLogin();
   const registerMutation = useRegister();
@@ -81,7 +178,7 @@ function LoginPage() {
   const resetPasswordMutation = useResetPassword();
 
   const signinForm = useForm<SigninForm>({ resolver: zodResolver(signinSchema), defaultValues: { email: "", password: "" } });
-  const signupForm = useForm<SignupForm>({ resolver: zodResolver(signupSchema), defaultValues: { first_name: "", last_name: "", email: "", password: "", role: "student", grade_code: "", section_code: "" } });
+  const signupForm = useForm<SignupForm>({ resolver: zodResolver(signupSchema), defaultValues: { first_name: "", last_name: "", email: "", phone: "", password: "", role: "student", grade_code: "", section_code: "" } });
   const requestResetForm = useForm<RequestResetForm>({ resolver: zodResolver(requestResetSchema), defaultValues: { email: "" } });
   const confirmResetForm = useForm<ConfirmResetForm>({ resolver: zodResolver(confirmResetSchema), defaultValues: { email: "", code: "", password: "", confirm: "" } });
   const signupRole = signupForm.watch("role")
@@ -115,14 +212,15 @@ function LoginPage() {
         first_name: data.first_name,
         last_name: data.last_name,
         email: data.email,
+        phone: data.phone,
         password: data.password,
         role: data.role,
         grade_code: data.role === "student" && data.grade_code ? data.grade_code : undefined,
         section_code: data.role === "student" && needsSection(data.grade_code) && data.section_code ? data.section_code : undefined,
       });
       toast.success("Compte cree. Connectez-vous maintenant.");
-      setMode("signin");
-      signupForm.reset({ first_name: "", last_name: "", email: "", password: "", role: "student", grade_code: "", section_code: "" });
+      switchMode("signin");
+      signupForm.reset({ first_name: "", last_name: "", email: "", phone: "", password: "", role: "student", grade_code: "", section_code: "" });
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Inscription impossible.");
     }
@@ -133,6 +231,7 @@ function LoginPage() {
       const response = await requestPasswordResetMutation.mutateAsync({ email: data.email });
       toast.success(response.message);
       confirmResetForm.reset({ email: data.email, code: "", password: "", confirm: "" });
+      countdown.start();
       setResetStep("confirm");
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Envoi du code impossible.");
@@ -141,14 +240,18 @@ function LoginPage() {
 
   async function handleResetPassword(data: ConfirmResetForm) {
     try {
-      const response = await resetPasswordMutation.mutateAsync({ email: data.email, code: data.code, password: data.password });
+      const response = await resetPasswordMutation.mutateAsync({
+        email: data.email,
+        code: data.code,
+        password: data.password,
+      });
       toast.success(response.message);
       signinForm.setValue("email", data.email);
       signinForm.setValue("password", "");
       requestResetForm.reset({ email: data.email });
       confirmResetForm.reset({ email: data.email, code: "", password: "", confirm: "" });
       setResetStep("request");
-      setMode("signin");
+      switchMode("signin");
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Reinitialisation impossible.");
     }
@@ -159,16 +262,36 @@ function LoginPage() {
     requestResetForm.reset({ email });
     confirmResetForm.reset({ email, code: "", password: "", confirm: "" });
     setResetStep("request");
-    setMode("forgot");
+    switchMode("forgot");
   }
 
   function backToSignin() {
-    setMode("signin");
+    switchMode("signin");
     setResetStep("request");
   }
 
+  async function handleGoogleAuth(credential: string) {
+    setGooglePending(true);
+    try {
+      const { data } = await api.post("/auth/google", { credential });
+      saveAuth(data.token, data.user);
+      window.location.replace(getPostAuthPath(data.user.role));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? "Google sign-in impossible.");
+    } finally {
+      setGooglePending(false);
+    }
+  }
+
+  // Precomputed classNames -- avoids template literals inside JSX (TS 5.9.3 parser workaround)
+  const clsTabBar = "flex items-center gap-1 rounded-full border border-border bg-muted/40 p-1 mb-6 w-fit" + (isRTL ? " flex-row-reverse" : "");
+  const clsTabActive = "relative px-5 py-2 text-sm font-semibold rounded-full transition-all duration-300 bg-gradient-bordeaux text-primary-foreground shadow-elegant";
+  const clsTabInactive = "relative px-5 py-2 text-sm font-semibold rounded-full transition-all duration-300 text-muted-foreground hover:text-foreground";
+  const clsFormSlide = "form-slide-in" + (isRTL ? " text-right" : "");
+  const clsForgotRow = "flex " + (isRTL ? "justify-start" : "justify-end");
+
   return (
-    <section className="min-h-[calc(100vh-4rem)] grid md:grid-cols-2">
+    <section className="min-h-[calc(100vh-4rem)] grid md:grid-cols-2 page-enter">
       {/* Left: brand panel */}
       <div className="hidden md:flex relative bg-gradient-hero text-primary-foreground p-12 flex-col justify-between overflow-hidden">
         <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-gold/15 blur-3xl" />
@@ -191,7 +314,7 @@ function LoginPage() {
       </div>
 
       {/* Right: form */}
-      <div className="flex items-center justify-center p-6 md:p-12">
+      <div className="flex items-center justify-center p-6 md:p-12 overflow-hidden">
         <div className="w-full max-w-md">
           <div className="text-center md:hidden mb-6">
             <Link to="/" className="inline-flex items-center gap-2">
@@ -202,277 +325,196 @@ function LoginPage() {
             </Link>
           </div>
 
-          <h1 className="font-display text-4xl font-bold text-foreground">
-            {mode === "signin" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset your password"}
-          </h1>
-          <div className="gold-divider mt-3" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            {mode === "signin"
-              ? "Sign in to continue your learning journey."
-              : mode === "signup"
-                ? "Join Edutopia and start learning today."
-                : resetStep === "request"
-                  ? "Enter your email and we will send you a secure reset code."
-                  : "Enter the 6-digit code from your email and choose a new password."}
-          </p>
+          {/* Mode tab switcher — only for signin/signup */}
+          {mode !== "forgot" && (
+            <div className={clsTabBar}>
+              <button
+                type="button"
+                onClick={() => switchMode("signin")}
+                className={mode === "signin" ? clsTabActive : clsTabInactive}
+              >
+                {t("nav_signin")}
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode("signup")}
+                className={mode === "signup" ? clsTabActive : clsTabInactive}
+              >
+                {t("nav_get_started")}
+              </button>
+            </div>
+          )}
+
+          <div key={animKey} className={clsFormSlide}>
+            <h1 className="font-display text-4xl font-bold text-foreground">
+              {mode === "signin" ? t("login_welcome") : mode === "signup" ? t("login_signup_title") : t("login_reset_title")}
+            </h1>
+            <div className="gold-divider mt-3" />
+            <p className="mt-4 text-sm text-muted-foreground">
+              {mode === "signin"
+                ? t("login_subtitle")
+                : mode === "signup"
+                  ? t("login_signup_subtitle")
+                  : resetStep === "request"
+                    ? t("login_reset_step1")
+                    : t("login_reset_step2")}
+            </p>
 
           {mode === "signin" ? (
             <form className="mt-8 space-y-4" onSubmit={signinForm.handleSubmit(handleSignin)}>
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@edutopia.com"
-                  {...signinForm.register("email")}
-                />
+                <Label htmlFor="email">{t("login_email")}</Label>
+                <Input id="email" type="email" placeholder="you@edutopia.com" autoComplete="email" {...signinForm.register("email")} />
                 {signinForm.formState.errors.email ? <p className="text-xs text-destructive">{signinForm.formState.errors.email.message}</p> : null}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  {...signinForm.register("password")}
-                />
+                <Label htmlFor="password">{t("login_password")}</Label>
+                <PasswordInput id="password" placeholder="••••••••" autoComplete="current-password" registration={signinForm.register("password")} />
                 {signinForm.formState.errors.password ? <p className="text-xs text-destructive">{signinForm.formState.errors.password.message}</p> : null}
               </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={openForgotPassword}
-                  className="text-sm font-medium text-bordeaux hover:underline"
-                >
-                  Forgot password?
+              <div className={clsForgotRow}>
+                <button type="button" onClick={openForgotPassword} className="text-sm font-medium text-bordeaux hover:underline">
+                  {t("login_forgot")}
                 </button>
               </div>
-              <Button
-                type="submit"
-                disabled={loginMutation.isPending}
-                className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11"
-              >
-                {loginMutation.isPending ? "Signing in…" : "Sign in"}
+              <Button type="submit" disabled={loginMutation.isPending} className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11">
+                {loginMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("login_signing")}</> : t("login_btn")}
               </Button>
             </form>
           ) : mode === "forgot" ? (
             resetStep === "request" ? (
               <form className="mt-8 space-y-4" onSubmit={requestResetForm.handleSubmit(handleRequestReset)}>
                 <div className="space-y-1.5">
-                  <Label htmlFor="reset-email">Email</Label>
-                  <Input
-                    id="reset-email"
-                    type="email"
-                    placeholder="you@edutopia.com"
-                    {...requestResetForm.register("email")}
-                  />
+                  <Label htmlFor="reset-email">{t("login_email")}</Label>
+                  <Input id="reset-email" type="email" placeholder="you@edutopia.com" autoComplete="email" {...requestResetForm.register("email")} />
                   {requestResetForm.formState.errors.email ? <p className="text-xs text-destructive">{requestResetForm.formState.errors.email.message}</p> : null}
                 </div>
-                <Button
-                  type="submit"
-                  disabled={requestPasswordResetMutation.isPending}
-                  className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11"
-                >
-                  {requestPasswordResetMutation.isPending ? "Sending code…" : "Send reset code"}
+                <Button type="submit" disabled={requestPasswordResetMutation.isPending} className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11">
+                  {requestPasswordResetMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("login_sending")}</> : t("login_send_code")}
                 </Button>
                 <Button type="button" variant="outline" className="w-full border-bordeaux text-bordeaux hover:bg-bordeaux/5" onClick={backToSignin}>
-                  Back to sign in
+                  {t("login_back_signin")}
                 </Button>
               </form>
             ) : (
-              <form className="mt-8 space-y-4" onSubmit={confirmResetForm.handleSubmit(handleResetPassword)}>
-                <div className="space-y-1.5">
-                  <Label htmlFor="reset-email-confirm">Email</Label>
-                  <Input
-                    id="reset-email-confirm"
-                    type="email"
-                    placeholder="you@edutopia.com"
-                    {...confirmResetForm.register("email")}
-                  />
-                  {confirmResetForm.formState.errors.email ? <p className="text-xs text-destructive">{confirmResetForm.formState.errors.email.message}</p> : null}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="reset-code">Reset code</Label>
-                  <Input
-                    id="reset-code"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="123456"
-                    {...confirmResetForm.register("code")}
-                  />
-                  {confirmResetForm.formState.errors.code ? <p className="text-xs text-destructive">{confirmResetForm.formState.errors.code.message}</p> : null}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="reset-password">New password</Label>
-                  <Input
-                    id="reset-password"
-                    type="password"
-                    placeholder="••••••••"
-                    {...confirmResetForm.register("password")}
-                  />
-                  {confirmResetForm.formState.errors.password ? <p className="text-xs text-destructive">{confirmResetForm.formState.errors.password.message}</p> : null}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="reset-confirm">Confirm new password</Label>
-                  <Input
-                    id="reset-confirm"
-                    type="password"
-                    placeholder="••••••••"
-                    {...confirmResetForm.register("confirm")}
-                  />
-                  {confirmResetForm.formState.errors.confirm ? <p className="text-xs text-destructive">{confirmResetForm.formState.errors.confirm.message}</p> : null}
-                </div>
-                <Button
-                  type="submit"
-                  disabled={resetPasswordMutation.isPending}
-                  className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11"
-                >
-                  {resetPasswordMutation.isPending ? "Updating password…" : "Reset password"}
-                </Button>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Button type="button" variant="outline" className="border-bordeaux text-bordeaux hover:bg-bordeaux/5" onClick={() => setResetStep("request")}>
-                    Resend code
-                  </Button>
-                  <Button type="button" variant="outline" className="border-bordeaux text-bordeaux hover:bg-bordeaux/5" onClick={backToSignin}>
-                    Back to sign in
-                  </Button>
-                </div>
-              </form>
+              <ResetConfirmForm
+                form={confirmResetForm as any}
+                countdown={countdown}
+                t={t}
+                onSubmit={handleResetPassword}
+                isPending={resetPasswordMutation.isPending}
+                onResend={() => setResetStep("request")}
+                onBack={backToSignin}
+              />
             )
           ) : (
             <form className="mt-8 space-y-4" onSubmit={signupForm.handleSubmit(handleSignup)}>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="firstName">First name</Label>
-                  <Input
-                    id="firstName"
-                    placeholder="Marie"
-                    {...signupForm.register("first_name")}
-                  />
+                  <Label htmlFor="firstName">{t("login_firstname")}</Label>
+                  <Input id="firstName" placeholder="Marie" autoComplete="given-name" {...signupForm.register("first_name")} />
                   {signupForm.formState.errors.first_name ? <p className="text-xs text-destructive">{signupForm.formState.errors.first_name.message}</p> : null}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="lastName">Last name</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Curie"
-                    {...signupForm.register("last_name")}
-                  />
+                  <Label htmlFor="lastName">{t("login_lastname")}</Label>
+                  <Input id="lastName" placeholder="Curie" autoComplete="family-name" {...signupForm.register("last_name")} />
                   {signupForm.formState.errors.last_name ? <p className="text-xs text-destructive">{signupForm.formState.errors.last_name.message}</p> : null}
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="emailReg">Email</Label>
-                <Input
-                  id="emailReg"
-                  type="email"
-                  placeholder="you@edutopia.com"
-                  {...signupForm.register("email")}
-                />
+                <Label htmlFor="emailReg">{t("login_email")}</Label>
+                <Input id="emailReg" type="email" placeholder="you@edutopia.com" autoComplete="email" {...signupForm.register("email")} />
                 {signupForm.formState.errors.email ? <p className="text-xs text-destructive">{signupForm.formState.errors.email.message}</p> : null}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="passwordReg">Password</Label>
-                <Input
-                  id="passwordReg"
-                  type="password"
-                  placeholder="••••••••"
-                  {...signupForm.register("password")}
-                />
+                <Label htmlFor="phoneReg">{t("login_phone")}</Label>
+                <Input id="phoneReg" type="tel" placeholder="+216 ..." autoComplete="tel" {...signupForm.register("phone")} />
+                {signupForm.formState.errors.phone ? <p className="text-xs text-destructive">{signupForm.formState.errors.phone.message}</p> : null}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="passwordReg">{t("login_password")}</Label>
+                <PasswordInput id="passwordReg" placeholder="••••••••" autoComplete="new-password" registration={signupForm.register("password")} />
                 {signupForm.formState.errors.password ? <p className="text-xs text-destructive">{signupForm.formState.errors.password.message}</p> : null}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="role">I am a</Label>
-                <select
-                  id="role"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold"
-                  {...signupForm.register("role")}
-                >
-                  <option value="student">Student</option>
-                  <option value="teacher">Teacher</option>
-                  <option value="parent">Parent</option>
+                <Label htmlFor="role">{t("login_iam")}</Label>
+                <select id="role" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold" {...signupForm.register("role")}>
+                  <option value="student">{t("login_student")}</option>
+                  <option value="teacher">{t("login_teacher")}</option>
+                  <option value="parent">{t("login_parent")}</option>
                 </select>
               </div>
               {signupRole === "student" && (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="grade_code">Class</Label>
-                    <select
-                      id="grade_code"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold"
-                      {...signupForm.register("grade_code")}
-                    >
-                      <option value="">Select class</option>
-                      {GRADE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
+                    <Label htmlFor="grade_code">{t("login_class")}</Label>
+                    <select id="grade_code" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold" {...signupForm.register("grade_code")}>
+                      <option value="">{t("login_select_class")}</option>
+                      {GRADE_OPTIONS.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}
                     </select>
                     {signupForm.formState.errors.grade_code ? <p className="text-xs text-destructive">{signupForm.formState.errors.grade_code.message}</p> : null}
                   </div>
                   {needsSection(signupGrade) && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="section_code">Section</Label>
-                      <select
-                        id="section_code"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold"
-                        {...signupForm.register("section_code")}
-                      >
-                        <option value="">Select section</option>
-                        {SECTION_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
+                      <Label htmlFor="section_code">{t("login_section")}</Label>
+                      <select id="section_code" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold" {...signupForm.register("section_code")}>
+                        <option value="">{t("login_select_section")}</option>
+                        {SECTION_OPTIONS.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}
                       </select>
                       {signupForm.formState.errors.section_code ? <p className="text-xs text-destructive">{signupForm.formState.errors.section_code.message}</p> : null}
                     </div>
                   )}
                 </>
               )}
-              <Button
-                type="submit"
-                disabled={registerMutation.isPending}
-                className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11"
-              >
-                {registerMutation.isPending ? "Creating account…" : "Create account"}
+              <Button type="submit" disabled={registerMutation.isPending} className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11">
+                {registerMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("login_creating")}</> : t("login_create_btn")}
               </Button>
             </form>
           )}
 
-          <p className="mt-6 text-sm text-center text-muted-foreground">
-            {mode === "signin" ? (
-              <>
-                New to Edutopia? {" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("signup")}
-                  className="font-semibold text-bordeaux hover:underline"
-                >
-                  Create an account
-                </button>
-              </>
-            ) : mode === "signup" ? (
-              <>
-                Already have an account? {" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("signin")}
-                  className="font-semibold text-bordeaux hover:underline"
-                >
-                  Sign in
-                </button>
-              </>
-            ) : (
-              <>
-                Back to your account? {" "}
-                <button
-                  type="button"
-                  onClick={backToSignin}
-                  className="font-semibold text-bordeaux hover:underline"
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
+          </div>{/* end form-slide-in */}
+
+          {mode !== "forgot" && import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <>
+              <div className="relative my-5 flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex-1 border-t border-border" />
+                <span>or continue with</span>
+                <div className="flex-1 border-t border-border" />
+              </div>
+              <div className={googlePending ? "flex justify-center opacity-60 pointer-events-none" : "flex justify-center"}>
+                <GoogleLogin
+                  onSuccess={(cred) => { if (cred.credential) void handleGoogleAuth(cred.credential); }}
+                  onError={() => toast.error("Google sign-in failed.")}
+                  theme="outline"
+                  text={mode === "signin" ? "signin_with" : "signup_with"}
+                  shape="rectangular"
+                  size="large"
+                  width={440}
+                />
+              </div>
+              {mode === "signup" && (
+                <p className="mt-5 text-center text-xs text-muted-foreground">
+                  By creating an account you agree to our{" "}
+                  <Link to="/terms" className="font-medium text-bordeaux hover:underline">Terms of Service</Link>
+                  {" "}and{" "}
+                  <Link to="/privacy" className="font-medium text-bordeaux hover:underline">Privacy Policy</Link>.
+                </p>
+              )}
+            </>
+          )}
+
+          {mode === "forgot" && (
+            <p className="mt-6 text-sm text-center text-muted-foreground">
+              Back to your account?{" "}
+              <button
+                type="button"
+                onClick={backToSignin}
+                className="font-semibold text-bordeaux hover:underline"
+              >
+                Sign in
+              </button>
+            </p>
+          )}
         </div>
       </div>
     </section>

@@ -5,6 +5,32 @@ const auth      = require('../middleware/auth');
 const authorize = require('../middleware/roles');
 const { isHttpUrl } = require('../utils/validation');
 const { ALL_GRADES, SECTION_CODES, SECTION_REQUIRED_GRADES } = require('../utils/academic');
+const multer    = require('multer');
+const path      = require('path');
+const fs        = require('fs');
+
+// ── Avatar upload ──────────────────────────────────────────────────────────────
+const avatarDir = path.join(__dirname, '..', '..', 'uploads', 'avatars');
+if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
+
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, avatarDir),
+    filename: (_req, file, cb) => {
+      const ext  = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
+    const allowedExtensions = /\.(jpg|jpeg|png|webp|gif)$/i;
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowedExtensions.test(file.originalname) && allowedMimeTypes.includes(file.mimetype)) {
+      return cb(null, true);
+    }
+    cb(new Error('Seules les images sont autorisées (jpg, png, webp, gif).'));
+  },
+});
 
 const createUserValidators = [
 	body('first_name').trim().isLength({ min: 2 }).withMessage('Le prenom doit contenir au moins 2 caracteres.'),
@@ -61,6 +87,20 @@ const createParentLinkValidators = [
 	body('student_id').isInt({ min: 1 }).withMessage('L\'eleve choisi est invalide.'),
 	body('relation_type').optional().isIn(['parent', 'mother', 'father', 'guardian']).withMessage('Le type de relation est invalide.'),
 ];
+
+// POST /api/users/upload-avatar → { avatar_url }
+router.post('/upload-avatar',
+  auth,
+  avatarUpload.single('avatar'),
+  async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: 'Aucun fichier reçu.' });
+    const avatar_url = `/uploads/avatars/${req.file.filename}`;
+    // Persist immediately on the user row
+    const db = require('../config/db');
+    await db.query('UPDATE users SET avatar_url = ? WHERE id = ?', [avatar_url, req.user.id]);
+    res.json({ avatar_url });
+  }
+);
 
 router.post('/',
 	auth,

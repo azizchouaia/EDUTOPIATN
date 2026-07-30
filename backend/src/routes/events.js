@@ -21,12 +21,18 @@ const createEventValidators = [
     }
     return true;
   }),
+  // seats_total: 0 = unlimited live, positive = limited live, ignored for video
   body('seats_total').custom((value, { req }) => {
-    if (req.body.delivery_type === 'video') {
-      return true;
+    if (req.body.delivery_type === 'video') return true;
+    const num = Number(value);
+    if (!Number.isInteger(num) || num < 0) {
+      throw new Error('Le nombre de places doit etre 0 (illimite) ou un entier positif.');
     }
-    if (!Number.isInteger(Number(value)) || Number(value) < 1) {
-      throw new Error('Le nombre de places doit etre superieur ou egal a 1 pour un live.');
+    return true;
+  }),
+  body('is_free').optional().custom((value) => {
+    if (![0, 1, '0', '1', true, false].includes(value)) {
+      throw new Error('La valeur is_free est invalide.');
     }
     return true;
   }),
@@ -48,15 +54,20 @@ const updateEventValidators = [
     return true;
   }),
   body('seats_total').optional().custom((value, { req }) => {
-    if ((req.body.delivery_type ?? 'google_meet') === 'video') {
-      return true;
-    }
-    if (!Number.isInteger(Number(value)) || Number(value) < 1) {
-      throw new Error('Le nombre de places doit etre superieur ou egal a 1 pour un live.');
+    if ((req.body.delivery_type ?? 'google_meet') === 'video') return true;
+    const num = Number(value);
+    if (!Number.isInteger(num) || num < 0) {
+      throw new Error('Le nombre de places doit etre 0 (illimite) ou un entier positif.');
     }
     return true;
   }),
   body('is_cancelled').optional().isIn([0, 1, '0', '1', true, false]).withMessage('Le statut d\'annulation est invalide.'),
+  body('is_free').optional().custom((value) => {
+    if (![0, 1, '0', '1', true, false].includes(value)) {
+      throw new Error('La valeur is_free est invalide.');
+    }
+    return true;
+  }),
 ];
 
 router.get('/', optionalAuth, ctrl.getAll);

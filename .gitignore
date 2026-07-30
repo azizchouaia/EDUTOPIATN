@@ -17,3 +17,12 @@ pnpm-debug.log*
 
 .DS_Store
 Thumbs.db
+
+# Agent / IDE internal
+.claude/
+
+# User-uploaded content (keep the folders, not the files)
+backend/uploads/**
+!backend/uploads/
+!backend/uploads/*/
+!backend/uploads/**/.gitkeep

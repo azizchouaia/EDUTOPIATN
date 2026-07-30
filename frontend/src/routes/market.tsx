@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Minus, Plus, ShoppingCart, Tag, Trash2, Truck } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -9,10 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import api from "@/lib/api";
-import { getStoredUser } from "@/lib/auth";
+import api, { assetUrl } from "@/lib/api";
+import { getStoredUser, isAuthenticated } from "@/lib/auth";
 import { hasMinLength, isBlank } from "@/lib/validation";
-import type { DeliveryDetails, MarketOrder, PaymentMethod, Product } from "@/lib/types";
+import { GOVERNORATES, TUNISIA } from "@/lib/tunisia";
+import type { DeliveryDetails, MarketOrder, OrderItem, PaymentMethod, Product } from "@/lib/types";
 
 export const Route = createFileRoute("/market")({
   head: () => ({
@@ -34,11 +35,14 @@ const tagLabels: Record<string, string> = {
 };
 
 const CART_STORAGE_KEY = "market-cart";
+const HIDDEN_ORDERS_KEY = "market-hidden-orders";
+
+const DELIVERY_FEE = 8; // 8 DT frais de livraison fixes
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
-  cash_on_delivery: "Cash on delivery",
-  card: "Card payment",
-  bank_transfer: "Bank transfer",
+  cash_on_delivery: "Paiement a la livraison",
+  card: "Card payment",         // kept for display on old orders only
+  bank_transfer: "Virement bancaire",
 };
 
 type CartItem = {
@@ -64,8 +68,18 @@ const INITIAL_DELIVERY: DeliveryDetails = {
 };
 
 function formatPrice(value: number) {
-  return `EUR ${value.toFixed(2)}`;
+  return `${value.toFixed(2)} DT`;
 }
+
+type OrderSummary = {
+  order_id: number;
+  subtotal: number;
+  discount_amount: number;
+  delivery_fee: number;
+  total: number;
+  payment_method: PaymentMethod;
+  items: CartItem[];
+};
 
 function MarketPage() {
   const queryClient = useQueryClient();
@@ -77,10 +91,32 @@ function MarketPage() {
   const [delivery, setDelivery] = useState<DeliveryDetails>({
     ...INITIAL_DELIVERY,
     full_name: storedUser ? `${storedUser.first_name} ${storedUser.last_name}` : "",
+    phone: storedUser?.phone ?? "",
   });
   const [deliveryErrors, setDeliveryErrors] = useState<DeliveryErrors>({});
+  const [governorate, setGovernorate] = useState("");
+  const [delegation, setDelegation] = useState("");
+  // Auth reads localStorage → only true after client mount (avoids SSR mismatch)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const authed = mounted && isAuthenticated();
+  const [lastOrderSummary, setLastOrderSummary] = useState<OrderSummary | null>(null);
+  const [badgePulse, setBadgePulse] = useState(false);
+  const [promoFlash, setPromoFlash] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [showAllOrders, setShowAllOrders] = useState(false);
+  const [hiddenOrderIds, setHiddenOrderIds] = useState<Set<number>>(() => {
+    try {
+      const raw = window.localStorage.getItem(HIDDEN_ORDERS_KEY);
+      const parsed = raw ? (JSON.parse(raw) as number[]) : [];
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const prevCartCount = useRef(0);
 
-  const { data: products = [], isLoading } = useQuery<Product[]>({
+  const { data: products = [], isLoading, isError: productsError, refetch: refetchProducts } = useQuery<Product[]>({
     queryKey: ["products"],
     queryFn: async () => {
       const res = await api.get<Product[]>("/market/products");
@@ -94,7 +130,26 @@ function MarketPage() {
       const res = await api.get<MarketOrder[]>("/market/orders");
       return res.data;
     },
+    enabled: isAuthenticated(),
   });
+
+  // Fresh profile — the localStorage copy can be stale (phone added/changed
+  // after login), so pull the current account to prefill delivery details.
+  const { data: me } = useQuery<{ first_name?: string; last_name?: string; phone?: string | null }>({
+    queryKey: ["me-market"],
+    queryFn: async () => (await api.get("/auth/me")).data,
+    enabled: isAuthenticated(),
+  });
+
+  // Prefill phone / full name from the profile when the user hasn't typed them yet
+  useEffect(() => {
+    if (!me) return;
+    setDelivery((prev) => ({
+      ...prev,
+      phone: prev.phone || (me.phone ?? ""),
+      full_name: prev.full_name || [me.first_name, me.last_name].filter(Boolean).join(" "),
+    }));
+  }, [me]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -114,6 +169,42 @@ function MarketPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
   }, [cart]);
+
+  // Remove stale cart items once product list loads
+  useEffect(() => {
+    if (products.length === 0) return;
+    const activeIds = new Set(products.filter((p) => p.is_active).map((p) => p.id));
+    setCart((current) => current.filter((item) => activeIds.has(item.product_id)));
+  }, [products]);
+
+  // Clear promo when the promo-specific product is removed from the cart
+  useEffect(() => {
+    if (!promoResult?.product_id) return;
+    const stillInCart = cart.some((item) => item.product_id === promoResult.product_id);
+    if (!stillInCart) {
+      setPromoResult(null);
+      setPromoCode("");
+    }
+  }, [cart, promoResult?.product_id]);
+
+  // Pulse badge when item count increases
+  const cartCount = cart.reduce((n, item) => n + item.quantity, 0);
+  useEffect(() => {
+    if (cartCount > prevCartCount.current) {
+      setBadgePulse(true);
+      const id = setTimeout(() => setBadgePulse(false), 600);
+      return () => clearTimeout(id);
+    }
+    prevCartCount.current = cartCount;
+  }, [cartCount]);
+
+  // Flash promo summary when a code is first applied
+  useEffect(() => {
+    if (!promoResult) return;
+    setPromoFlash(true);
+    const id = setTimeout(() => setPromoFlash(false), 950);
+    return () => clearTimeout(id);
+  }, [promoResult?.discount_percent, promoResult?.product_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const cartLines = useMemo(
@@ -140,7 +231,7 @@ function MarketPage() {
     }, 0);
   }, [cartLines, promoResult]);
   const discountAmount = promoResult ? promoEligibleSubtotal * (promoResult.discount_percent / 100) : 0;
-  const total = Math.max(0, subtotal - discountAmount);
+  const total = Math.max(0, subtotal - discountAmount) + DELIVERY_FEE;
   const matchingPromoProduct = promoResult?.product_id ? cartLines.some((line) => line.product.id === promoResult.product_id) : true;
 
   const promoMutation = useMutation({
@@ -165,8 +256,18 @@ function MarketPage() {
         payment_method: paymentMethod,
         delivery,
       }),
-    onSuccess: () => {
-      toast.success("Commande enregistree.");
+    onSuccess: (res) => {
+      const data = res.data;
+      setLastOrderSummary({
+        order_id: data.order_id,
+        subtotal: data.subtotal,
+        discount_amount: data.discount_amount,
+        delivery_fee: data.delivery_fee ?? DELIVERY_FEE,
+        total: data.total,
+        payment_method: data.payment_method,
+        items: [...cart],
+      });
+      toast.success(`Commande #${data.order_id} enregistree.`);
       setCart([]);
       setPromoCode("");
       setPromoResult(null);
@@ -174,12 +275,24 @@ function MarketPage() {
       setDelivery({
         ...INITIAL_DELIVERY,
         full_name: storedUser ? `${storedUser.first_name} ${storedUser.last_name}` : "",
+        phone: me?.phone ?? storedUser?.phone ?? "",
       });
+      setGovernorate("");
+      setDelegation("");
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["my-orders"] });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? "Commande impossible."),
   });
+
+  const hideOrder = (orderId: number) => {
+    setHiddenOrderIds((prev) => {
+      const next = new Set([...prev, orderId]);
+      try { window.localStorage.setItem(HIDDEN_ORDERS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+    setConfirmDeleteId(null);
+  };
 
   const addToCart = (productId: number) => {
     const product = productMap.get(productId);
@@ -248,6 +361,10 @@ function MarketPage() {
   };
 
   const placeOrder = () => {
+    if (!isAuthenticated()) {
+      window.location.href = "/login";
+      return;
+    }
     if (cart.length === 0) {
       toast.error("Ajoutez d'abord au moins un produit au panier.");
       return;
@@ -271,7 +388,7 @@ function MarketPage() {
           <h1 className="mt-3 font-display text-5xl font-bold md:text-6xl">The Edutopia Market</h1>
           <div className="gold-divider mx-auto my-6" />
           <p className="mx-auto max-w-2xl text-primary-foreground/80">
-            Build a real pannier, apply promo codes, choose how you want to pay, and add the delivery coordinates before confirming the order.
+            Build your cart, apply promo codes, choose how you want to pay, and add your delivery details before confirming the order.
           </p>
         </div>
       </section>
@@ -304,7 +421,7 @@ function MarketPage() {
               disabled={!promoCode || promoMutation.isPending}
               className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
             >
-              {promoMutation.isPending ? "..." : "Apply"}
+              {promoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
             </Button>
           </div>
         </div>
@@ -318,14 +435,31 @@ function MarketPage() {
                 <h2 className="font-display text-3xl font-bold text-foreground">Featured Products</h2>
                 <p className="mt-2 text-sm text-muted-foreground">Collect products in the cart first, then checkout once with delivery and payment details.</p>
               </div>
-              <Badge className="w-fit bg-bordeaux/10 px-3 py-1 text-bordeaux hover:bg-bordeaux/10">
-                {cart.reduce((count, item) => count + item.quantity, 0)} items in cart
+              <Badge className={`w-fit bg-bordeaux/10 px-3 py-1 text-bordeaux hover:bg-bordeaux/10 transition-all${badgePulse ? " badge-pulse" : ""}`}>
+                {cartCount} items in cart
               </Badge>
             </div>
 
             {isLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-bordeaux" />
+              <div className="grid gap-6 sm:grid-cols-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="overflow-hidden rounded-[28px] border border-border bg-card">
+                    <div className="skeleton aspect-[4/3] rounded-none" />
+                    <div className="space-y-3 p-6">
+                      <div className="skeleton h-6 w-3/4" />
+                      <div className="skeleton h-4 w-full" />
+                      <div className="flex items-end justify-between pt-2">
+                        <div className="skeleton h-8 w-24" />
+                        <div className="skeleton h-10 w-32" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : productsError ? (
+              <div className="flex flex-col items-center gap-3 py-10 text-center">
+                <p className="text-sm text-destructive">Impossible de charger les produits. Veuillez verifier votre connexion.</p>
+                <Button variant="outline" size="sm" onClick={() => refetchProducts()}>Reessayer</Button>
               </div>
             ) : products.length === 0 ? (
               <p className="py-10 text-center text-muted-foreground">No products available.</p>
@@ -340,7 +474,7 @@ function MarketPage() {
                     <article key={product.id} className="group overflow-hidden rounded-[28px] border border-border bg-card transition-all hover:-translate-y-1 hover:shadow-elegant">
                       <div className="relative grid aspect-[4/3] place-items-center bg-gradient-to-br from-bordeaux/10 via-gold/10 to-bordeaux/5">
                         {product.image_url ? (
-                          <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+                          <img src={assetUrl(product.image_url) ?? undefined} alt={product.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         ) : (
                           <div className="text-5xl font-display text-bordeaux/30">BOOK</div>
                         )}
@@ -378,7 +512,9 @@ function MarketPage() {
 
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>{product.category ?? "General"}</span>
-                          <span>{product.stock > 0 ? `${product.stock} left in stock` : "Out of stock"}</span>
+                          <span className={product.stock === 0 ? "font-semibold text-destructive" : product.stock <= 5 ? "font-semibold text-amber-600 dark:text-amber-400" : undefined}>
+                            {product.stock > 0 ? `${product.stock} left in stock` : "Out of stock"}
+                          </span>
                         </div>
                       </div>
                     </article>
@@ -389,7 +525,7 @@ function MarketPage() {
           </div>
 
           <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
-            <Card className="border-border/70 bg-white/90 shadow-elegant">
+            <Card className="border-border/70 bg-card/90 shadow-elegant">
               <CardHeader>
                 <CardTitle className="font-display text-2xl text-bordeaux">Your cart</CardTitle>
                 <CardDescription>Collect the products you want before finishing the order.</CardDescription>
@@ -401,11 +537,18 @@ function MarketPage() {
                   </div>
                 ) : (
                   cartLines.map((line) => (
-                    <div key={line.product.id} className="rounded-2xl border border-border/70 p-4">
+                    <div key={line.product.id} className="cart-item-enter rounded-2xl border border-border/70 p-4">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-medium text-foreground">{line.product.name}</div>
-                          <div className="text-xs text-muted-foreground">{formatPrice(Number(line.product.price))} each</div>
+                        <div className="flex items-start gap-3">
+                          {line.product.image_url ? (
+                            <img src={assetUrl(line.product.image_url) ?? undefined} alt={line.product.name} className="h-12 w-12 flex-shrink-0 rounded-lg object-cover" />
+                          ) : (
+                            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-bordeaux/10 text-xs font-display text-bordeaux/50">IMG</div>
+                          )}
+                          <div>
+                            <div className="font-medium text-foreground">{line.product.name}</div>
+                            <div className="text-xs text-muted-foreground">{formatPrice(Number(line.product.price))} each</div>
+                          </div>
                         </div>
                         <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => removeFromCart(line.product.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -429,7 +572,7 @@ function MarketPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/70 bg-white/90 shadow-elegant">
+            <Card className="border-border/70 bg-card/90 shadow-elegant">
               <CardHeader>
                 <CardTitle className="font-display text-2xl text-bordeaux">Checkout</CardTitle>
                 <CardDescription>Choose the payment method and fill in the delivery coordinates.</CardDescription>
@@ -443,9 +586,8 @@ function MarketPage() {
                     value={paymentMethod}
                     onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
                   >
-                    {Object.entries(paymentMethodLabels).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
+                    <option value="cash_on_delivery">Paiement a la livraison</option>
+                    <option value="bank_transfer">Virement bancaire</option>
                   </select>
                 </div>
 
@@ -461,8 +603,38 @@ function MarketPage() {
                     {deliveryErrors.phone ? <p className="text-xs text-destructive">{deliveryErrors.phone}</p> : null}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="delivery-city">City</Label>
-                    <Input id="delivery-city" value={delivery.city} onChange={(event) => setDeliveryField("city", event.target.value)} placeholder="Tunis" className={deliveryErrors.city ? "border-destructive" : undefined} />
+                    <Label htmlFor="delivery-governorate">Gouvernorat</Label>
+                    <select
+                      id="delivery-governorate"
+                      value={governorate}
+                      onChange={(e) => {
+                        const g = e.target.value;
+                        setGovernorate(g);
+                        setDelegation("");
+                        setDeliveryField("city", "");
+                      }}
+                      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${deliveryErrors.city && !governorate ? "border-destructive" : "border-input"}`}
+                    >
+                      <option value="">— Choisir —</option>
+                      {GOVERNORATES.map((g) => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="delivery-delegation">Délégation</Label>
+                    <select
+                      id="delivery-delegation"
+                      value={delegation}
+                      disabled={!governorate}
+                      onChange={(e) => {
+                        const d = e.target.value;
+                        setDelegation(d);
+                        setDeliveryField("city", d ? `${d}, ${governorate}` : "");
+                      }}
+                      className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed ${deliveryErrors.city && governorate && !delegation ? "border-destructive" : "border-input"}`}
+                    >
+                      <option value="">{governorate ? "— Choisir —" : "Choisis d'abord un gouvernorat"}</option>
+                      {(TUNISIA[governorate] ?? []).map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
                     {deliveryErrors.city ? <p className="text-xs text-destructive">{deliveryErrors.city}</p> : null}
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -481,14 +653,20 @@ function MarketPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm">
+                <div className={`rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm${promoFlash ? " promo-flash" : ""}`}>
                   <div className="flex items-center justify-between">
-                    <span>Subtotal</span>
+                    <span>Sous-total</span>
                     <span>{formatPrice(subtotal)}</span>
                   </div>
-                  <div className="mt-2 flex items-center justify-between text-emerald-700">
-                    <span>Promo discount</span>
-                    <span>-{formatPrice(discountAmount)}</span>
+                  {discountAmount > 0 && (
+                    <div className="mt-2 flex items-center justify-between text-emerald-700 dark:text-emerald-400">
+                      <span>Remise promo</span>
+                      <span>-{formatPrice(discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center justify-between text-muted-foreground">
+                    <span>Frais de livraison</span>
+                    <span>{formatPrice(DELIVERY_FEE)}</span>
                   </div>
                   <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3 font-display text-xl font-bold text-bordeaux">
                     <span>Total</span>
@@ -497,32 +675,125 @@ function MarketPage() {
                 </div>
 
                 <Button type="button" className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90" disabled={orderMutation.isPending || cartLines.length === 0} onClick={placeOrder}>
-                  {orderMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming order...</> : <><Truck className="mr-2 h-4 w-4" /> Confirm order</>}
+                  {orderMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming order...</> : authed ? <><Truck className="mr-2 h-4 w-4" /> Confirm order</> : "Sign in to checkout"}
                 </Button>
 
-                {promoResult?.product_id && !matchingPromoProduct ? (
-                  <p className="text-xs text-amber-700">This promo only applies when its matching product is in the cart.</p>
+                {!authed ? (
+                  <p className="text-center text-xs text-muted-foreground">You need to <a href="/login" className="font-medium text-bordeaux underline-offset-4 hover:underline">sign in</a> to place an order.</p>
+                ) : promoResult?.product_id && !matchingPromoProduct ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">This promo only applies when its matching product is in the cart.</p>
                 ) : null}
               </CardContent>
             </Card>
 
-            <Card className="border-border/70 bg-white/90 shadow-elegant">
-              <CardHeader>
-                <CardTitle className="font-display text-2xl text-bordeaux">Recent orders</CardTitle>
-                <CardDescription>Your latest market requests and delivery details.</CardDescription>
+            {lastOrderSummary ? (
+              <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-950/30 shadow-elegant">
+                <CardHeader>
+                  <CardTitle className="font-display text-xl text-emerald-700 dark:text-emerald-400">Order #{lastOrderSummary.order_id} confirmed</CardTitle>
+                  <CardDescription className="text-emerald-600 dark:text-emerald-500">Your order has been placed. We will contact you shortly.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  {lastOrderSummary.items.map((item) => {
+                    const product = productMap.get(item.product_id);
+                    if (!product) return null;
+                    return (
+                      <div key={item.product_id} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {product.image_url ? (
+                            <img src={assetUrl(product.image_url) ?? undefined} alt={product.name} className="h-8 w-8 rounded object-cover" />
+                          ) : null}
+                          <span>{product.name} × {item.quantity}</span>
+                        </div>
+                        <span className="font-medium">{formatPrice(Number(product.price) * item.quantity)}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-emerald-200 dark:border-emerald-800/50 pt-2 space-y-1">
+                    {lastOrderSummary.discount_amount > 0 ? (
+                      <div className="flex justify-between text-emerald-600 dark:text-emerald-500"><span>Remise</span><span>-{formatPrice(lastOrderSummary.discount_amount)}</span></div>
+                    ) : null}
+                    <div className="flex justify-between text-muted-foreground"><span>Livraison</span><span>{formatPrice(lastOrderSummary.delivery_fee ?? DELIVERY_FEE)}</span></div>
+                    <div className="flex justify-between font-bold text-emerald-700 dark:text-emerald-400"><span>Total</span><span>{formatPrice(lastOrderSummary.total)}</span></div>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" className="w-full text-emerald-600 dark:text-emerald-500" onClick={() => setLastOrderSummary(null)}>Dismiss</Button>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            <Card className="border-border/70 bg-card/90 shadow-elegant">
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="font-display text-2xl text-bordeaux">Recent orders</CardTitle>
+                  <CardDescription>Your latest market requests and delivery details.</CardDescription>
+                </div>
+                {orders.filter((o) => !hiddenOrderIds.has(o.id)).length > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllOrders((v) => !v)}
+                    className="shrink-0 text-xs font-medium text-bordeaux underline-offset-4 hover:underline"
+                  >
+                    {showAllOrders ? "Voir moins" : `Tout voir (${orders.filter((o) => !hiddenOrderIds.has(o.id)).length})`}
+                  </button>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
-                {orders.length === 0 ? (
+                {orders.filter((o) => !hiddenOrderIds.has(o.id)).length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border/80 px-4 py-6 text-sm text-muted-foreground">No orders yet.</div>
                 ) : (
-                  orders.slice(0, 4).map((order) => (
+                  (showAllOrders
+                    ? orders.filter((o) => !hiddenOrderIds.has(o.id))
+                    : orders.filter((o) => !hiddenOrderIds.has(o.id)).slice(0, 4)
+                  ).map((order) => (
                     <div key={order.id} className="rounded-2xl border border-border/70 p-4 text-sm">
                       <div className="flex items-center justify-between gap-3">
                         <div className="font-medium text-foreground">Order #{order.id}</div>
-                        <Badge className="bg-bordeaux/10 text-bordeaux hover:bg-bordeaux/10">{order.status}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-bordeaux/10 text-bordeaux hover:bg-bordeaux/10">{order.status}</Badge>
+                          {(order.status === "pending" || order.status === "cancelled") && confirmDeleteId !== order.id && (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(order.id)}
+                              className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors"
+                              title="Supprimer la commande"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {confirmDeleteId === order.id && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => hideOrder(order.id)}
+                                className="rounded px-2 py-0.5 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+                              >
+                                Masquer
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="mt-2 text-muted-foreground">{formatPrice(Number(order.total_amount))} via {paymentMethodLabels[order.payment_method]}</div>
                       <div className="mt-1 text-muted-foreground">{order.delivery_full_name ?? "Delivery pending"} • {order.delivery_city ?? "No city"}</div>
+                      {order.items && order.items.length > 0 ? (
+                        <div className="mt-3 space-y-1 border-t border-border/50 pt-2">
+                          {order.items.map((item: OrderItem) => (
+                            <div key={item.product_id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {item.product_image_url ? (
+                                <img src={assetUrl(item.product_image_url) ?? undefined} alt={item.product_name} className="h-6 w-6 rounded object-cover" />
+                              ) : null}
+                              <span>{item.product_name} × {item.quantity}</span>
+                              <span className="ml-auto">{formatPrice(Number(item.unit_price) * item.quantity)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ))
                 )}

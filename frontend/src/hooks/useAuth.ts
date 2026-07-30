@@ -92,6 +92,7 @@ interface ProfilePayload {
   first_name?: string
   last_name?: string
   age?: number | null
+  phone?: string | null
   college?: string | null
   school_cycle?: User["school_cycle"]
   grade_code?: User["grade_code"]

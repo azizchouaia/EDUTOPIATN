@@ -1,19 +1,32 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Check, Crown, Loader2 } from "lucide-react";
+import { AlertCircle, Banknote, Check, Crown, Loader2, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import api, { assetUrl } from "@/lib/api";
 import { getStoredUser, isAuthenticated } from "@/lib/auth";
 import type { Subscription, SubscriptionAccessStatus, SubscriptionPaymentMethod, SubscriptionPlan } from "@/lib/types";
 
+// ── Bank account details ─────────────────────────────────────────────────────
+// Update these constants to match your real bank account information.
+const BANK_INFO = {
+  beneficiary: "Edutopia Academy SARL",
+  bank:        "Banque Nationale Agricole (BNA)",
+  rib:         "08 006 0123456789 00",
+  iban:        "TN59 0800 6012 3456 7890 0",
+  swift:       "BNATTNTT",
+  reference:   "SUB-{email}",   // {email} will be replaced with the student's email
+} as const;
+
 export const Route = createFileRoute("/subscriptions")({
   beforeLoad: () => {
     if (typeof window === "undefined") return;
+    if (!isAuthenticated()) throw redirect({ to: "/login" });
     const user = getStoredUser();
     if (user?.role === "teacher") {
       throw redirect({ to: "/teacher" });
@@ -50,9 +63,9 @@ function planBadge(plan: SubscriptionPlan) {
 function SubscriptionsPage() {
   const queryClient = useQueryClient();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("1_month");
-  const [paymentMethod, setPaymentMethod] = useState<SubscriptionPaymentMethod>("online");
   const [activationCode, setActivationCode] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [checkoutPlan, setCheckoutPlan] = useState<SubscriptionPlan | null>(null); // drives the confirmation dialog
 
   const { data: plans = [], isLoading } = useQuery<SubscriptionPlan[]>({
     queryKey: ["subscription-plans"],
@@ -76,21 +89,24 @@ function SubscriptionsPage() {
     [accessStatus, subscriptions]
   );
 
+  const PENDING_STATUSES = ["pending_payment", "pending_receipt", "pending_approval", "pending_code"] as const;
   const pendingSubscription = useMemo(
-    () => accessStatus?.pending_subscription ?? subscriptions.find((subscription) => subscription.status === "pending_code") ?? null,
+    () => accessStatus?.pending_subscription ?? subscriptions.find((subscription) => (PENDING_STATUSES as readonly string[]).includes(subscription.status)) ?? null,
     [accessStatus, subscriptions]
   );
 
+
   const checkoutMutation = useMutation({
-    mutationFn: (plan: SubscriptionPlan) => api.post("/subscriptions/checkout", { plan: plan.slug, billing_cycle: billingCycle, payment_method: paymentMethod }),
-    onSuccess: (response) => {
-      const devCode = response.data?.development_code as string | undefined;
-      toast.success(devCode ? `Subscription created. Dev code: ${devCode}` : "Subscription created. Enter your activation code to unlock access.");
+    mutationFn: (plan: SubscriptionPlan) =>
+      api.post("/subscriptions/checkout", { plan: plan.slug, billing_cycle: billingCycle, payment_method: "bank_transfer" }),
+    onSuccess: () => {
+      toast.success("Demande d'abonnement enregistree. Uploadez votre recu pour continuer.");
+      setCheckoutPlan(null);
       queryClient.invalidateQueries({ queryKey: ["my-subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["subscription-access-status"] });
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? "Failed to activate subscription");
+      toast.error(error?.response?.data?.message ?? "Failed to create subscription");
     },
   });
 
@@ -129,16 +145,111 @@ function SubscriptionsPage() {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: () => api.post(`/subscriptions/${pendingSubscription!.id}/cancel`),
+    onSuccess: () => {
+      toast.success("Demande d'abonnement annulee.");
+      queryClient.invalidateQueries({ queryKey: ["my-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription-access-status"] });
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.message ?? "Annulation impossible."),
+  });
+
+  const isCodeExpired = pendingSubscription?.status === "pending_code" &&
+    pendingSubscription.activation_code_expires_at != null &&
+    new Date(pendingSubscription.activation_code_expires_at) < new Date();
+
   const handleSubscribe = (plan: SubscriptionPlan) => {
     if (!isAuthenticated()) {
       window.location.href = "/login";
       return;
     }
-    checkoutMutation.mutate(plan);
+    // Open the confirmation dialog instead of calling checkout directly.
+    setCheckoutPlan(plan);
   };
+
+  const storedUser = getStoredUser();
+  const bankReference = BANK_INFO.reference.replace("{email}", storedUser?.email ?? "unknown");
+
+  const checkoutPrice = checkoutPlan ? cyclePrice(checkoutPlan, billingCycle) : 0;
 
   return (
     <>
+      {/* ── Checkout confirmation dialog ────────────────────────────────────── */}
+      <Dialog open={Boolean(checkoutPlan)} onOpenChange={(open) => { if (!open && !checkoutMutation.isPending) setCheckoutPlan(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl text-foreground">Instructions de virement</DialogTitle>
+          </DialogHeader>
+
+          {checkoutPlan && (
+            <div className="space-y-5 pt-1">
+              {/* Order summary */}
+              <div className="rounded-xl border border-bordeaux/20 bg-bordeaux/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-bordeaux">Recapitulatif</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-display text-xl font-bold capitalize text-foreground">{checkoutPlan.title}</p>
+                    <p className="text-sm text-muted-foreground">{billingCycleLabels[billingCycle]} · Virement bancaire</p>
+                  </div>
+                  <p className="font-display text-2xl font-bold text-bordeaux">{checkoutPrice} DT</p>
+                </div>
+              </div>
+
+              {/* Bank account details */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Banknote className="h-4 w-4 text-bordeaux" /> Coordonnees bancaires
+                </div>
+                <div className="space-y-2 text-sm">
+                  {[
+                    { label: "Beneficiaire", value: BANK_INFO.beneficiary },
+                    { label: "Banque",       value: BANK_INFO.bank },
+                    { label: "RIB",          value: BANK_INFO.rib },
+                    { label: "IBAN",         value: BANK_INFO.iban },
+                    { label: "SWIFT/BIC",    value: BANK_INFO.swift },
+                    { label: "Reference",    value: bankReference },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex justify-between gap-4">
+                      <span className="text-muted-foreground shrink-0">{label}</span>
+                      <span className="font-mono font-medium text-foreground text-right break-all">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30 p-3 flex gap-2 text-sm text-amber-800 dark:text-amber-300">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>Effectuez le virement en premier, puis cliquez sur <strong>Confirmer</strong>. Vous pourrez ensuite envoyer votre recu pour validation.</span>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 border-bordeaux text-bordeaux hover:bg-bordeaux/5"
+                  onClick={() => setCheckoutPlan(null)}
+                  disabled={checkoutMutation.isPending}
+                >
+                  <X className="mr-2 h-4 w-4" /> Annuler
+                </Button>
+                <Button
+                  type="button"
+                  className="flex-1 bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
+                  onClick={() => checkoutMutation.mutate(checkoutPlan)}
+                  disabled={checkoutMutation.isPending}
+                >
+                  {checkoutMutation.isPending
+                    ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Traitement…</>
+                    : <><Check className="mr-2 h-4 w-4" /> Confirmer la demande</>
+                  }
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <section className="bg-gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-20 text-center">
           <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gold">Subscriptions</span>
@@ -164,18 +275,10 @@ function SubscriptionsPage() {
             </Button>
           ))}
         </div>
-        <div className="mx-auto mt-5 flex max-w-fit flex-wrap gap-2 rounded-full border border-border/70 bg-card p-2 shadow-elegant">
-          {(["online", "bank_transfer"] as SubscriptionPaymentMethod[]).map((method) => (
-            <Button
-              key={method}
-              type="button"
-              variant={paymentMethod === method ? "default" : "ghost"}
-              className={paymentMethod === method ? "bg-gradient-bordeaux text-primary-foreground hover:opacity-90" : "text-bordeaux hover:bg-bordeaux/5"}
-              onClick={() => setPaymentMethod(method)}
-            >
-              {method === "online" ? "Online payment" : "Bank transfer"}
-            </Button>
-          ))}
+        {/* Payment method: bank transfer only */}
+        <div className="mx-auto mt-5 flex max-w-fit items-center gap-2 rounded-full border border-border/70 bg-card px-5 py-3 shadow-elegant text-sm text-muted-foreground">
+          <Banknote className="h-4 w-4 text-bordeaux" />
+          Paiement par virement bancaire uniquement
         </div>
       </section>
 
@@ -196,23 +299,27 @@ function SubscriptionsPage() {
         ) : null}
 
         {pendingSubscription ? (
-          <Card className="mx-auto mb-10 max-w-3xl border-bordeaux/20 bg-white/90 shadow-elegant">
+          <Card className="mx-auto mb-10 max-w-3xl border-bordeaux/20 bg-white/90 dark:bg-card shadow-elegant">
             <CardContent className="grid gap-5 p-6 md:grid-cols-[1fr_auto] md:items-end">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.25em] text-bordeaux">Activation required</div>
                 <div className="mt-2 font-display text-2xl font-bold text-foreground">
-                  {pendingSubscription.status === "pending_receipt"
-                    ? "Upload your bank-transfer receipt"
-                    : pendingSubscription.status === "pending_approval"
-                      ? "Your receipt is under admin review"
-                      : "Your subscription is waiting for code activation"}
+                  {pendingSubscription.status === "pending_payment"
+                    ? "Complete your online payment"
+                    : pendingSubscription.status === "pending_receipt"
+                      ? "Upload your bank-transfer receipt"
+                      : pendingSubscription.status === "pending_approval"
+                        ? "Your receipt is under admin review"
+                        : "Your subscription is waiting for code activation"}
                 </div>
                 <div className="mt-2 text-sm text-muted-foreground">
-                  {pendingSubscription.status === "pending_receipt"
-                    ? "Bank transfer does not show a code immediately. Upload the receipt here first, then wait for the admin to approve it."
-                    : pendingSubscription.status === "pending_approval"
-                      ? "The receipt is already uploaded. The code will only appear after admin approval."
-                      : "Enter the code here to unlock courses and events. New purchases stay blocked while one activation is already pending."}
+                  {pendingSubscription.status === "pending_payment"
+                    ? "You started an online payment that hasn't been confirmed yet. If you already paid, your activation code will appear here shortly. Otherwise, cancel this request and try again."
+                    : pendingSubscription.status === "pending_receipt"
+                      ? "Bank transfer does not show a code immediately. Upload the receipt here first, then wait for the admin to approve it."
+                      : pendingSubscription.status === "pending_approval"
+                        ? "The receipt is already uploaded. The code will only appear after admin approval."
+                        : "Enter the code here to unlock courses and events. New purchases stay blocked while one activation is already pending."}
                 </div>
                 {pendingSubscription.status === "pending_code" && accessStatus?.development_code ? (
                   <div className="mt-4 inline-flex rounded-full border border-dashed border-gold/60 bg-gold/10 px-4 py-2 text-sm font-medium text-bordeaux-deep">
@@ -239,29 +346,49 @@ function SubscriptionsPage() {
                   />
                 ) : null}
               </div>
-              {pendingSubscription.status === "pending_receipt" ? (
+              <div className="flex flex-col gap-2">
+                {pendingSubscription.status === "pending_payment" ? (
+                  <Button type="button" disabled className="bg-gradient-bordeaux text-primary-foreground opacity-80">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Awaiting payment confirmation
+                  </Button>
+                ) : pendingSubscription.status === "pending_receipt" ? (
+                  <Button
+                    type="button"
+                    className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
+                    onClick={() => uploadReceiptMutation.mutate()}
+                    disabled={!receiptFile || uploadReceiptMutation.isPending}
+                  >
+                    {uploadReceiptMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</> : "Upload receipt"}
+                  </Button>
+                ) : pendingSubscription.status === "pending_code" ? (
+                  <>
+                    {isCodeExpired ? (
+                      <p className="text-xs text-amber-700">Code expired. Contact an admin to regenerate your activation code.</p>
+                    ) : null}
+                    <Button
+                      type="button"
+                      className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
+                      onClick={() => activateMutation.mutate()}
+                      disabled={!activationCode.trim() || activateMutation.isPending || isCodeExpired}
+                    >
+                      {activateMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Activating...</> : "Activate code"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button type="button" disabled className="bg-gradient-bordeaux text-primary-foreground opacity-80">
+                    Waiting for admin approval
+                  </Button>
+                )}
                 <Button
                   type="button"
-                  className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
-                  onClick={() => uploadReceiptMutation.mutate()}
-                  disabled={!receiptFile || uploadReceiptMutation.isPending}
+                  variant="outline"
+                  className="border-destructive/50 text-destructive hover:bg-destructive/5"
+                  onClick={() => cancelMutation.mutate()}
+                  disabled={cancelMutation.isPending}
                 >
-                  {uploadReceiptMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</> : "Upload receipt"}
+                  {cancelMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelling...</> : "Cancel this request"}
                 </Button>
-              ) : pendingSubscription.status === "pending_code" ? (
-                <Button
-                  type="button"
-                  className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
-                  onClick={() => activateMutation.mutate()}
-                  disabled={!activationCode.trim() || activateMutation.isPending}
-                >
-                  {activateMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Activating...</> : "Activate code"}
-                </Button>
-              ) : (
-                <Button type="button" disabled className="bg-gradient-bordeaux text-primary-foreground opacity-80">
-                  Waiting for admin approval
-                </Button>
-              )}
+              </div>
             </CardContent>
           </Card>
         ) : null}
@@ -293,7 +420,7 @@ function SubscriptionsPage() {
                   ) : null}
                   <p className={`mt-3 text-sm ${featured ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{plan.description}</p>
                   <div className="mt-5 flex items-baseline gap-1">
-                    <span className="font-display text-5xl font-bold">EUR {cyclePrice(plan, billingCycle)}</span>
+                    <span className="font-display text-5xl font-bold">{cyclePrice(plan, billingCycle)} DT</span>
                     <span className={featured ? "text-primary-foreground/70" : "text-muted-foreground"}>/{billingCycleLabels[billingCycle]}</span>
                   </div>
                   <ul className="mt-6 space-y-3">

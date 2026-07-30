@@ -213,7 +213,20 @@ ON DUPLICATE KEY UPDATE
   display_order = VALUES(display_order);
 
 -- -------------------------------------------------------------
--- 3. ENROLLMENTS
+-- 3. STUDENT RESOURCE PROGRESS
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS student_resource_progress (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  student_id  INT UNSIGNED NOT NULL,
+  resource_id INT UNSIGNED NOT NULL,
+  completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_student_resource (student_id, resource_id),
+  CONSTRAINT fk_srp_student  FOREIGN KEY (student_id)  REFERENCES users(id)            ON DELETE CASCADE,
+  CONSTRAINT fk_srp_resource FOREIGN KEY (resource_id) REFERENCES chapter_resources(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- 4. ENROLLMENTS
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS enrollments (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -342,6 +355,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   activation_code_hash VARCHAR(255) DEFAULT NULL,
   activation_code_preview VARCHAR(32) DEFAULT NULL,
   activation_code_expires_at DATETIME DEFAULT NULL,
+  activation_attempts INT UNSIGNED NOT NULL DEFAULT 0,
   approved_by INT UNSIGNED DEFAULT NULL,
   approved_at DATETIME DEFAULT NULL,
   activated_at DATETIME DEFAULT NULL,

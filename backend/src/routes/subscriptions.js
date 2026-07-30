@@ -22,19 +22,20 @@ const uploadReceipt = multer({
   storage: receiptStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
+    // Dual check: extension AND MIME type must both match to prevent spoofing.
+    const allowedExtensions = /\.(jpg|jpeg|png|webp|pdf)$/i;
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      cb(new Error('Seuls les recus JPG, PNG, WEBP ou PDF sont autorises.'));
-      return;
+    if (allowedExtensions.test(file.originalname) && allowedMimeTypes.includes(file.mimetype)) {
+      return cb(null, true);
     }
-    cb(null, true);
+    cb(new Error('Seuls les recus JPG, PNG, WEBP ou PDF sont autorises.'));
   },
 });
 
 const checkoutValidators = [
   body('plan').isIn(['basic', 'premium', 'enterprise']).withMessage('Le forfait est invalide.'),
   body('billing_cycle').isIn(['1_month', '3_months', '1_year']).withMessage('Le cycle de facturation est invalide.'),
-  body('payment_method').optional().isIn(['online', 'bank_transfer']).withMessage('Le mode de paiement est invalide.'),
+  body('payment_method').optional().isIn(['bank_transfer']).withMessage('Seul le virement bancaire est accepte.'),
 ];
 
 const createSubscriptionValidators = [
@@ -42,7 +43,7 @@ const createSubscriptionValidators = [
   body('plan').isIn(['basic', 'premium', 'enterprise']).withMessage('Le forfait est invalide.'),
   body('billing_cycle').optional().isIn(['1_month', '3_months', '1_year']).withMessage('Le cycle de facturation est invalide.'),
   body('price_paid').optional().isFloat({ min: 0 }).withMessage('Le montant paye doit etre superieur ou egal a 0.'),
-  body('payment_method').optional().isIn(['online', 'bank_transfer']).withMessage('Le mode de paiement est invalide.'),
+  body('payment_method').optional().isIn(['bank_transfer']).withMessage('Le mode de paiement est invalide.'),
   body('status').optional().isIn(['pending_receipt', 'pending_approval', 'pending_code', 'active', 'expired', 'cancelled']).withMessage('Le statut est invalide.'),
   body('start_date').isISO8601().withMessage('La date de debut est invalide.'),
   body('end_date').isISO8601().withMessage('La date de fin est invalide.').bail().custom((value, { req }) => {
@@ -58,7 +59,7 @@ const updateSubscriptionValidators = [
   body('plan').optional().isIn(['basic', 'premium', 'enterprise']).withMessage('Le forfait est invalide.'),
   body('billing_cycle').optional().isIn(['1_month', '3_months', '1_year']).withMessage('Le cycle de facturation est invalide.'),
   body('price_paid').optional().isFloat({ min: 0 }).withMessage('Le montant paye doit etre superieur ou egal a 0.'),
-  body('payment_method').optional().isIn(['online', 'bank_transfer']).withMessage('Le mode de paiement est invalide.'),
+  body('payment_method').optional().isIn(['bank_transfer']).withMessage('Le mode de paiement est invalide.'),
   body('status').optional().isIn(['pending_receipt', 'pending_approval', 'pending_code', 'active', 'expired', 'cancelled']).withMessage('Le statut est invalide.'),
   body('start_date').optional().isISO8601().withMessage('La date de debut est invalide.'),
   body('end_date').optional().isISO8601().withMessage('La date de fin est invalide.'),
@@ -99,6 +100,10 @@ router.post('/:id/approve-bank-transfer',
   authorize('admin'),
   ctrl.approveBankTransfer
 );
+
+router.post('/:id/cancel', auth, ctrl.cancelPending);
+
+router.post('/:id/regenerate-code', auth, authorize('admin'), ctrl.regenerateCode);
 
 router.post('/',
   auth,

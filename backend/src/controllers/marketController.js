@@ -1,5 +1,9 @@
 const db = require('../config/db');
 const { handleValidationErrors } = require('../utils/validation');
+const { sendOrderStatusEmail } = require('../utils/mailer');
+const { getCache, setCache, invalidateCache } = require('../utils/cache');
+
+const CACHE_KEY_PRODUCTS = 'market:products:public';
 
 const PAYMENT_METHODS = ['cash_on_delivery', 'card', 'bank_transfer'];
 
@@ -7,6 +11,14 @@ const PAYMENT_METHODS = ['cash_on_delivery', 'card', 'bank_transfer'];
 async function getProducts(req, res) {
   const { category, tag, search } = req.query;
   const includeInactive = req.user.role === 'admin' && req.query.include_inactive === 'true';
+
+  // Cache only the common unfiltered public listing (non-admin, no filters)
+  const isPlainPublic = !includeInactive && !category && !tag && !search;
+  if (isPlainPublic) {
+    const cached = getCache(CACHE_KEY_PRODUCTS);
+    if (cached) return res.json(cached);
+  }
+
   let sql    = 'SELECT * FROM products WHERE 1 = 1';
   const params = [];
 
@@ -20,6 +32,7 @@ async function getProducts(req, res) {
 
   sql += ' ORDER BY created_at DESC';
   const [rows] = await db.query(sql, params);
+  if (isPlainPublic) setCache(CACHE_KEY_PRODUCTS, rows, 60); // 60-second TTL
   res.json(rows);
 }
 
@@ -45,13 +58,25 @@ async function updateProduct(req, res) {
 
   params.push(req.params.id);
   await db.query(`UPDATE products SET ${updates.join(', ')} WHERE id = ?`, params);
+  invalidateCache(CACHE_KEY_PRODUCTS);
   res.json({ message: 'Produit mis a jour.' });
 }
 
 // DELETE /api/market/products/:id  (admin only)
 async function removeProduct(req, res) {
+  // Block delete if active orders reference this product
+  const [activeOrders] = await db.query(
+    `SELECT COUNT(*) AS cnt FROM order_items oi
+     JOIN orders o ON o.id = oi.order_id
+     WHERE oi.product_id = ? AND o.status NOT IN ('cancelled', 'refunded')`,
+    [req.params.id]
+  );
+  if (activeOrders[0].cnt > 0) {
+    return res.status(409).json({ message: 'Ce produit a des commandes actives et ne peut pas etre supprime.' });
+  }
   const [result] = await db.query('DELETE FROM products WHERE id = ?', [req.params.id]);
   if (result.affectedRows === 0) return res.status(404).json({ message: 'Produit introuvable.' });
+  invalidateCache(CACHE_KEY_PRODUCTS);
   res.json({ message: 'Produit supprime.' });
 }
 
@@ -65,6 +90,7 @@ async function createProduct(req, res) {
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [name, description || null, price, category || null, tag || 'none', stock || 0, image_url || null]
   );
+  invalidateCache(CACHE_KEY_PRODUCTS);
   res.status(201).json({ message: 'Produit cree.', id: result.insertId });
 }
 
@@ -101,14 +127,21 @@ async function createOrder(req, res) {
 
   if (promo_code) {
     const [promos] = await db.query(
-      `SELECT * FROM promo_codes
-       WHERE code = ? AND is_active = 1
-         AND (expires_at IS NULL OR expires_at > NOW())
-         AND (max_uses IS NULL OR used_count < max_uses)`,
+      `SELECT pc.*, p.is_active AS product_is_active
+       FROM promo_codes pc
+       LEFT JOIN products p ON p.id = pc.product_id
+       WHERE pc.code = ? AND pc.is_active = 1
+         AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+         AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)`,
       [promo_code]
     );
     const promo = promos[0];
-    if (!promo) return res.status(400).json({ message: 'Code promo invalide ou expire.' });
+    // A promo tied to a product that has since been deactivated/removed must be
+    // treated as invalid too — otherwise checkout fails later with a confusing
+    // "Produit introuvable" error instead of a clear promo-code message.
+    if (!promo || (promo.product_id && !promo.product_is_active)) {
+      return res.status(400).json({ message: 'Code promo invalide ou expire.' });
+    }
     if (promo.product_id && !normalizedItems.some((item) => item.product_id === Number(promo.product_id))) {
       return res.status(400).json({ message: 'Ce code promo ne s\'applique pas aux produits du panier.' });
     }
@@ -138,7 +171,8 @@ async function createOrder(req, res) {
     }
   }
   const discountAmount = eligibleSubtotal * discountRate;
-  const total = subtotal - discountAmount;
+  const DELIVERY_FEE = 8; // 8 DT fixed delivery fee
+  const total = subtotal - discountAmount + DELIVERY_FEE;
 
   const conn = await db.getConnection();
   try {
@@ -178,14 +212,30 @@ async function createOrder(req, res) {
         'INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)',
         [orderId, item.product_id, item.quantity, product.price]
       );
-      await conn.query(
-        'UPDATE products SET stock = stock - ? WHERE id = ?',
-        [item.quantity, item.product_id]
+      // Guard against concurrent orders overselling the same product: only decrement
+      // if enough stock is still available at the moment of the write.
+      const [stockResult] = await conn.query(
+        'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?',
+        [item.quantity, item.product_id, item.quantity]
       );
+      if (stockResult.affectedRows === 0) {
+        const outOfStockError = new Error(`Stock insuffisant pour le produit ${item.product_id}.`);
+        outOfStockError.status = 409;
+        throw outOfStockError;
+      }
     }
 
     if (promoId) {
-      await conn.query('UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?', [promoId]);
+      // Guard against concurrent orders exceeding max_uses on the same promo code.
+      const [promoResult] = await conn.query(
+        'UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ? AND (max_uses IS NULL OR used_count < max_uses)',
+        [promoId]
+      );
+      if (promoResult.affectedRows === 0) {
+        const promoError = new Error('Ce code promo vient d\'atteindre sa limite d\'utilisation.');
+        promoError.status = 409;
+        throw promoError;
+      }
     }
 
     await conn.commit();
@@ -194,6 +244,7 @@ async function createOrder(req, res) {
       order_id: orderId,
       subtotal: Number(subtotal.toFixed(2)),
       discount_amount: Number(discountAmount.toFixed(2)),
+      delivery_fee: DELIVERY_FEE,
       total: Number(total.toFixed(2)),
       payment_method,
     });
@@ -207,7 +258,7 @@ async function createOrder(req, res) {
 
 // GET /api/market/orders  (user sees own orders)
 async function getMyOrders(req, res) {
-  const [rows] = await db.query(
+  const [orders] = await db.query(
     `SELECT o.*, pc.code AS promo_code
      FROM orders o
      LEFT JOIN promo_codes pc ON pc.id = o.promo_code_id
@@ -215,35 +266,120 @@ async function getMyOrders(req, res) {
      ORDER BY o.created_at DESC`,
     [req.user.id]
   );
-  res.json(rows);
+  if (orders.length === 0) return res.json([]);
+
+  const orderIds = orders.map((o) => o.id);
+  const [items] = await db.query(
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.unit_price,
+            p.name AS product_name, p.image_url AS product_image_url
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id IN (?)`,
+    [orderIds]
+  );
+
+  const itemsByOrder = {};
+  for (const item of items) {
+    if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
+    itemsByOrder[item.order_id].push(item);
+  }
+
+  res.json(orders.map((order) => ({ ...order, items: itemsByOrder[order.id] || [] })));
 }
 
 // GET /api/market/orders/all  (admin only)
 async function getAllOrders(_req, res) {
-  const [rows] = await db.query(
+  const [orders] = await db.query(
     `SELECT o.*, u.first_name, u.last_name, u.email, pc.code AS promo_code
      FROM orders o
      JOIN users u ON u.id = o.user_id
      LEFT JOIN promo_codes pc ON pc.id = o.promo_code_id
      ORDER BY o.created_at DESC`
   );
-  res.json(rows);
+  if (orders.length === 0) return res.json([]);
+
+  const orderIds = orders.map((o) => o.id);
+  const [items] = await db.query(
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.unit_price,
+            p.name AS product_name, p.image_url AS product_image_url
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id IN (?)`,
+    [orderIds]
+  );
+
+  const itemsByOrder = {};
+  for (const item of items) {
+    if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
+    itemsByOrder[item.order_id].push(item);
+  }
+
+  res.json(orders.map((order) => ({ ...order, items: itemsByOrder[order.id] || [] })));
 }
 
 // PUT /api/market/orders/:id/status  (admin only)
 async function updateOrderStatus(req, res) {
   if (handleValidationErrors(req, res)) return;
 
-  const [rows] = await db.query('SELECT id FROM orders WHERE id = ?', [req.params.id]);
+  const [rows] = await db.query('SELECT id, status FROM orders WHERE id = ?', [req.params.id]);
   if (!rows[0]) return res.status(404).json({ message: 'Commande introuvable.' });
 
   const allowedStatuses = ['pending', 'paid', 'cancelled', 'refunded'];
-  if (!allowedStatuses.includes(req.body.status)) {
+  const newStatus = req.body.status;
+  if (!allowedStatuses.includes(newStatus)) {
     return res.status(422).json({ message: 'Statut de commande invalide.' });
   }
 
-  await db.query('UPDATE orders SET status = ? WHERE id = ?', [req.body.status, req.params.id]);
-  res.json({ message: 'Commande mise a jour.' });
+  const currentStatus = rows[0].status;
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('UPDATE orders SET status = ? WHERE id = ?', [newStatus, req.params.id]);
+
+    // Restore stock when cancelling/refunding an order that wasn't already cancelled/refunded
+    if (['cancelled', 'refunded'].includes(newStatus) && !['cancelled', 'refunded'].includes(currentStatus)) {
+      const [orderItems] = await conn.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ?',
+        [req.params.id]
+      );
+      for (const item of orderItems) {
+        await conn.query(
+          'UPDATE products SET stock = stock + ? WHERE id = ?',
+          [item.quantity, item.product_id]
+        );
+      }
+    }
+
+    await conn.commit();
+
+    // Email notification for meaningful status changes (fire-and-forget)
+    if (['paid', 'cancelled', 'refunded'].includes(newStatus) && newStatus !== currentStatus) {
+      db.query(
+        `SELECT u.email, u.first_name, o.total_amount
+         FROM orders o JOIN users u ON u.id = o.user_id
+         WHERE o.id = ?`,
+        [req.params.id]
+      ).then(([urows]) => {
+        const u = urows[0];
+        if (u) {
+          sendOrderStatusEmail({
+            to: u.email,
+            firstName: u.first_name,
+            orderId: req.params.id,
+            newStatus,
+            total: u.total_amount,
+          }).catch((err) => console.error('[mailer] sendOrderStatusEmail failed:', err));
+        }
+      }).catch(() => {});
+    }
+
+    res.json({ message: 'Commande mise a jour.' });
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
 }
 
 // POST /api/market/validate-promo
@@ -252,10 +388,13 @@ async function validatePromo(req, res) {
   if (!code) return res.status(400).json({ message: 'Le code promo est obligatoire.' });
 
   const [rows] = await db.query(
-    `SELECT id, code, discount_percent, product_id FROM promo_codes
-     WHERE code = ? AND is_active = 1
-       AND (expires_at IS NULL OR expires_at > NOW())
-       AND (max_uses IS NULL OR used_count < max_uses)`,
+    `SELECT pc.id, pc.code, pc.discount_percent, pc.product_id
+     FROM promo_codes pc
+     LEFT JOIN products p ON p.id = pc.product_id
+     WHERE pc.code = ? AND pc.is_active = 1
+       AND (pc.expires_at IS NULL OR pc.expires_at > NOW())
+       AND (pc.max_uses IS NULL OR pc.used_count < pc.max_uses)
+       AND (pc.product_id IS NULL OR p.is_active = 1)`,
     [code]
   );
   if (!rows[0]) return res.status(404).json({ message: 'Code promo invalide ou expire.' });
@@ -318,6 +457,45 @@ async function removePromoCode(req, res) {
   res.json({ message: 'Code promo supprime.' });
 }
 
+// DELETE /api/market/orders/:id  (order owner only, pending or cancelled)
+async function deleteOrder(req, res) {
+  const userId = req.user.id;
+  const [rows] = await db.query('SELECT id, status, user_id FROM orders WHERE id = ?', [req.params.id]);
+  const order = rows[0];
+  if (!order) return res.status(404).json({ message: 'Commande introuvable.' });
+  if (order.user_id !== userId) return res.status(403).json({ message: 'Acces interdit.' });
+  if (!['pending', 'cancelled'].includes(order.status)) {
+    return res.status(422).json({ message: 'Seules les commandes en attente ou annulees peuvent etre supprimees.' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    // Restore stock only for pending orders (cancelled already had stock restored)
+    if (order.status === 'pending') {
+      const [orderItems] = await conn.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ?',
+        [req.params.id]
+      );
+      for (const item of orderItems) {
+        await conn.query(
+          'UPDATE products SET stock = stock + ? WHERE id = ?',
+          [item.quantity, item.product_id]
+        );
+      }
+    }
+    await conn.query('DELETE FROM order_items WHERE order_id = ?', [req.params.id]);
+    await conn.query('DELETE FROM orders WHERE id = ?', [req.params.id]);
+    await conn.commit();
+    res.json({ message: 'Commande supprimee.' });
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   getProducts,
   createProduct,
@@ -332,4 +510,5 @@ module.exports = {
   createPromoCode,
   updatePromoCode,
   removePromoCode,
+  deleteOrder,
 };

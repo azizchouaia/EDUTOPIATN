@@ -12,7 +12,7 @@ import type { SubscriptionAccessStatus } from "@/lib/types";
 
 function PlaceholderTile({ title, meta }: { title: string; meta: string }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-white/80 p-5 shadow-sm">
+    <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
       <div className="h-32 rounded-xl bg-gradient-to-br from-bordeaux/15 via-gold/10 to-bordeaux-deep/15" />
       <div className="mt-4 h-4 w-24 rounded-full bg-bordeaux/15" />
       <div className="mt-3 h-6 w-3/4 rounded-full bg-foreground/10" />
@@ -60,15 +60,15 @@ export function SubscriptionGate({
   const activationReady = pendingStatus === "pending_code";
 
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-bordeaux/15 bg-white/70 shadow-elegant">
+    <div className="relative overflow-hidden rounded-[2rem] border border-bordeaux/15 bg-card/70 shadow-elegant">
       <div className="grid gap-6 p-6 opacity-60 blur-[5px] md:grid-cols-3 md:p-10 pointer-events-none select-none">
         <PlaceholderTile title="Premium content" meta="Locked" />
         <PlaceholderTile title="Exclusive sessions" meta="Subscription" />
         <PlaceholderTile title="Protected access" meta="Activation required" />
       </div>
-      <div className="absolute inset-0 bg-white/30 backdrop-blur-xl" />
+      <div className="absolute inset-0 bg-background/30 backdrop-blur-xl" />
       <div className="absolute inset-0 flex items-center justify-center p-4 md:p-8">
-        <Card className="w-full max-w-3xl border-bordeaux/20 bg-white/90 shadow-elegant">
+        <Card className="w-full max-w-3xl border-bordeaux/20 bg-card shadow-elegant">
           <CardHeader className="space-y-3 text-center">
             <Badge className="mx-auto border-0 bg-bordeaux text-primary-foreground hover:bg-bordeaux">
               <LockKeyhole className="mr-2 h-3.5 w-3.5" /> Subscription required
@@ -122,7 +122,7 @@ export function SubscriptionGate({
                     value={code}
                     onChange={(event) => setCode(event.target.value.toUpperCase())}
                     placeholder="Enter activation code"
-                    className="mt-4 border-bordeaux/20 bg-white"
+                    className="mt-4 border-bordeaux/20"
                   />
                   <Button
                     type="button"

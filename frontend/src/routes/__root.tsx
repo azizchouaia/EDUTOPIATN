@@ -1,10 +1,12 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts, useLocation } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { LanguageProvider } from "@/lib/i18n";
 
 const queryClient = new QueryClient();
 
@@ -49,16 +51,20 @@ export const Route = createRootRoute({
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "icon", href: "/favicon-64.png", type: "image/png", sizes: "64x64" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=Cairo:wght@400;500;600;700;800&display=swap" },
     ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
 });
+
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
@@ -77,17 +83,25 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
+  // Khlayel is a full-height chat — a footer below it just creates dead scroll space
+  const isKhlayelRoute = location.pathname.startsWith("/khlayel");
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="flex min-h-screen flex-col">
-        <SiteHeader />
-        <main className={isAdminRoute ? "flex-1 bg-[radial-gradient(circle_at_top_left,_rgba(125,16,34,0.07),_transparent_30%),linear-gradient(180deg,#fffdf9_0%,#f8f3ea_100%)]" : "flex-1"}>
-          <Outlet />
-        </main>
-        {!isAdminRoute && <SiteFooter />}
-      </div>
-      <Toaster richColors position="top-right" />
-    </QueryClientProvider>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ""}>
+      <LanguageProvider>
+        <QueryClientProvider client={queryClient}>
+          <div className="flex min-h-screen flex-col">
+            <SiteHeader />
+            <main className={isAdminRoute ? "flex-1 bg-background bg-[radial-gradient(circle_at_top_left,_rgba(125,16,34,0.07),_transparent_30%)]" : "flex-1"}>
+              <div key={location.pathname} className="page-enter">
+                <Outlet />
+              </div>
+            </main>
+            {!isAdminRoute && !isKhlayelRoute && <SiteFooter />}
+          </div>
+          <Toaster richColors position="top-right" />
+        </QueryClientProvider>
+      </LanguageProvider>
+    </GoogleOAuthProvider>
   );
 }

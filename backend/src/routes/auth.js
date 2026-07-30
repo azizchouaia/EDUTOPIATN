@@ -67,4 +67,6 @@ router.post('/reset-password',
 
 router.get('/me', auth, ctrl.me);
 
+router.post('/google', ctrl.googleAuth);
+
 module.exports = router;

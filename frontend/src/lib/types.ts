@@ -8,6 +8,7 @@ export interface User {
   last_name: string
   age: number | null
   email: string
+  phone: string | null
   role: UserRole
   college: string | null
   year_of_study: string | null
@@ -78,6 +79,7 @@ export interface SubjectChapter {
   pdf_count: number
   exercise_count: number
   correction_count: number
+  completed_count: number  // how many resources this student has completed
 }
 
 export interface ChapterResource {
@@ -90,6 +92,7 @@ export interface ChapterResource {
   external_url: string | null
   duration_minutes: number | null
   display_order: number
+  is_completed: boolean  // whether the current student has completed this resource
 }
 
 export interface StudentSubjectsResponse {
@@ -130,6 +133,10 @@ export interface Event {
   seats_total: number
   seats_taken: number
   is_cancelled: number
+  /** true = any logged-in user may participate; false = active subscription required */
+  is_free: boolean
+  /** whether the current viewer holds an active subscription (server-computed) */
+  has_subscription?: boolean
   is_registered?: boolean
 }
 
@@ -277,6 +284,12 @@ export interface ParentChildSummary {
   enrolled_courses: number
   completed_courses: number
   avg_progress: number
+  // Subscription info
+  active_plan: "basic" | "premium" | "enterprise" | null
+  active_billing_cycle: "1_month" | "3_months" | "1_year" | null
+  active_start_date: string | null
+  active_end_date: string | null
+  active_days_remaining: number | null
 }
 
 export interface ParentChildEnrollment {
@@ -289,6 +302,14 @@ export interface ParentChildEnrollment {
   progress: number
   completed: number
   enrolled_at: string
+}
+
+export interface ChildActiveSubscription {
+  plan: "basic" | "premium" | "enterprise"
+  billing_cycle: "1_month" | "3_months" | "1_year"
+  start_date: string
+  end_date: string
+  days_remaining: number
 }
 
 export interface ParentChildProgressResponse {
@@ -304,12 +325,83 @@ export interface ParentChildProgressResponse {
     section_code: SectionCode | null
     relation_type: "parent" | "mother" | "father" | "guardian"
   }
+  subscription: ChildActiveSubscription | null
   stats: {
     total_courses: number
     completed_courses: number
     avg_progress: number
   }
   enrollments: ParentChildEnrollment[]
+}
+
+export interface CourseContentResource {
+  id: number
+  chapter_id: number
+  resource_type: "pdf_lesson" | "video_lesson" | "exercise_sheet" | "correction_sheet" | "extra_resource"
+  title: string
+  description: string | null
+  file_url: string | null
+  external_url: string | null
+  duration_minutes: number | null
+  display_order: number
+}
+
+export interface CourseContentChapter {
+  id: number
+  title: string
+  slug: string
+  description: string | null
+  display_order: number
+  resources: CourseContentResource[]
+}
+
+export interface CourseContentResponse {
+  course: Course & { first_name: string; last_name: string }
+  enrollment: { id: number; progress: number; completed: number }
+  chapters: CourseContentChapter[]
+}
+
+export interface StudentStatsOverview {
+  total_enrollments: number
+  completed_courses: number
+  in_progress: number
+  avg_progress: number
+}
+
+export interface StudentStatsCourse {
+  id: number
+  title: string
+  category: string
+  progress: number
+  completed: number
+  enrolled_at: string
+}
+
+export interface StudentStatsTimeline {
+  month: string  // "YYYY-MM"
+  count: number
+}
+
+export interface StudentStatsCategory {
+  category: string
+  count: number
+  avg_progress: number
+}
+
+export interface StudentStats {
+  overview:   StudentStatsOverview
+  courses:    StudentStatsCourse[]
+  timeline:   StudentStatsTimeline[]
+  categories: StudentStatsCategory[]
+}
+
+export interface OrderItem {
+  order_id: number
+  product_id: number
+  quantity: number
+  unit_price: number
+  product_name: string
+  product_image_url: string | null
 }
 
 export interface MarketOrder {
@@ -327,6 +419,7 @@ export interface MarketOrder {
   delivery_notes: string | null
   status: "pending" | "paid" | "cancelled" | "refunded"
   created_at: string
+  items: OrderItem[]
   first_name?: string
   last_name?: string
   email?: string

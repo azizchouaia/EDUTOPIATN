@@ -26,6 +26,14 @@
 
 ---
 
+## Repository State
+
+- Root repository now lives at `Edutopia/` and is pushed to `https://github.com/azizchouaia/EDUTOPIATN.git`
+- Frontend is no longer tracked as a separate nested git repository
+- Root `.gitignore` now excludes `node_modules`, build output, and local env files
+
+---
+
 ## Current Progress
 
 | Phase | Status |
@@ -52,6 +60,7 @@
 | Team | `/team` | ✅ Complete | Live API-backed team page; no longer static |
 | Support | `/reclamations` | ✅ Complete | Live ticket form and status tracking |
 | Profile | `/profile` | ✅ Complete | Authenticated profile management |
+| Teacher Workspace | `/teacher` | ✅ Complete | Dedicated teacher surface for course CRUD, chapters/resources, owned sessions, student roster, and analytics |
 | Parent Workspace | `/parent` | ✅ Complete | Read-only parent dashboard for linked child progress and enrollments |
 | Admin Workspace | `/admin`, `/admin/$module` | ✅ Complete | Routed admin workspace with module pages instead of one long screen |
 
@@ -88,6 +97,7 @@
 - Login now includes a professional forgot-password flow with email reset code request and password update in the same auth surface
 - Parent accounts now have a dedicated `/parent` workspace with linked-child progress cards and course-by-course tracking
 - Courses now render a blurred locked UI when the backend returns `403 SUBSCRIPTION_REQUIRED`
+- Courses now use subject and chapter detail routes under `/courses/$subjectSlug` and `/courses/$subjectSlug/$chapterSlug`
 - Events page now supports free Google Meet lives plus free video sessions with public access
 - Subscriptions page now supports activation-code entry plus bank-transfer receipt upload before approval
 - Teacher workspace now supports chapter and resource management per owned course
@@ -98,26 +108,34 @@
 
 - Express API running on port 5000 with MySQL/MariaDB
 - Canonical schema in `backend/database.sql`
-- Current schema includes 14 main tables:
-  - `users`
+- Current schema includes 21 main tables:
+    - `users`
     - `parent_student_links`
-  - `courses`
-  - `enrollments`
-  - `events`
-  - `event_registrations`
-  - `products`
-  - `promo_codes`
-  - `orders`
-  - `order_items`
-  - `subscriptions`
-  - `subscription_plans`
-  - `team_members`
-  - `reclamations`
+    - `courses`
+    - `course_chapters`
+    - `course_resources`
+    - `academic_tracks`
+    - `subjects`
+    - `track_subjects`
+    - `chapters`
+    - `chapter_resources`
+    - `enrollments`
+    - `events`
+    - `event_registrations`
+    - `products`
+    - `promo_codes`
+    - `orders`
+    - `order_items`
+    - `subscriptions`
+    - `subscription_plans`
+    - `team_members`
+    - `reclamations`
 - JWT auth middleware and role-based access control in place
 - Controllers and routes implemented for auth, users, parent, courses, events, market, subscriptions, team, and reclamations
 - Admin order status update endpoint implemented
 - Promo codes can target specific products
 - Subscriptions now support duration selection and a DB-backed plan catalog
+- Academic curriculum is now backed by `academic_tracks`, `subjects`, `track_subjects`, `chapters`, and `chapter_resources`
 - Student access to courses is enforced by backend subscription middleware returning `403 SUBSCRIPTION_REQUIRED`
 - Events backend now supports `google_meet` and `video` delivery modes with a direct access URL
 - Events are readable without subscription gating; live Meet sessions keep seat reservations while videos are directly accessible
@@ -156,8 +174,8 @@
 
 ### Important
 
-3. **Course detail page**
-    There is still no dedicated `/courses/:id` route.
+3. **Legacy course detail page**
+    There is still no dedicated `/courses/:id` route for the original course entity. The current curriculum flow already uses `/courses/$subjectSlug` and `/courses/$subjectSlug/$chapterSlug`.
 
 4. **Teacher deeper learner activity**
     Teachers can now see enrolled students plus basic progress metrics, but they still cannot see detailed per-resource activity, last lesson viewed, or assessment performance.
@@ -242,43 +260,69 @@
 
 ```text
 Edutopia/
+├── .gitignore
+├── README.md
+├── PROJECT_STATUS.md
+├── package.json
+├── package-lock.json
 ├── frontend/
+│   ├── package.json
 │   └── src/
 │       ├── routes/
 │       │   ├── __root.tsx
+│       │   ├── admin.tsx
+│       │   ├── admin.index.tsx
+│       │   ├── admin.$module.tsx
 │       │   ├── index.tsx
 │       │   ├── login.tsx
 │       │   ├── dashboard.tsx
 │       │   ├── courses.tsx
+│       │   ├── courses.index.tsx
+│       │   ├── courses.$subjectSlug.tsx
+│       │   ├── courses.$subjectSlug.index.tsx
+│       │   ├── courses.$subjectSlug.$chapterSlug.tsx
 │       │   ├── events.tsx
 │       │   ├── market.tsx
 │       │   ├── subscriptions.tsx
 │       │   ├── team.tsx
 │       │   ├── reclamations.tsx
 │       │   ├── profile.tsx
-│       │   ├── admin.tsx
-│       │   ├── admin.index.tsx
-│       │   └── admin.$module.tsx
+│       │   ├── teacher.tsx
+│       │   └── parent.tsx
 │       ├── components/
-│       │   └── SubscriptionGate.tsx
+│       │   ├── SubscriptionGate.tsx
+│       │   └── admin/
 │       ├── hooks/
 │       └── lib/
 └── backend/
-     ├── database.sql
+    ├── .env.example
+    ├── package.json
+    ├── database.sql
     ├── migrations/
-     ├── .env
-     └── src/
-          ├── app.js
-          ├── config/db.js
-          ├── middleware/
-          ├── controllers/
-          └── routes/
+    ├── uploads/
+    │   └── subscription-receipts/
+    └── src/
+        ├── app.js
+        ├── config/db.js
+        ├── middleware/
+        ├── controllers/
+        ├── routes/
+        │   ├── auth.js
+        │   ├── courses.js
+        │   ├── events.js
+        │   ├── market.js
+        │   ├── parent.js
+        │   ├── reclamations.js
+        │   ├── subscriptions.js
+        │   ├── team.js
+        │   └── users.js
+        └── utils/
 ```
 
 ---
 
 ## Summary
 
-The project is well past the original Phase 2 state. The public platform is live against the backend, the admin workspace is implemented as a routed control surface, the market now supports a real cart and checkout form, subscriptions have moved onto their own database-backed page with selectable durations plus an activation workflow, the events area now works as a free sessions hub for both Google Meet lives and video content, and the login flow now includes email-based password reset.
+The project is well past the original Phase 2 state. The public platform is live against the backend, the admin workspace is implemented as a routed control surface, the teacher and parent workspaces are both active, the market now supports a real cart and checkout form, subscriptions have moved onto their own database-backed page with selectable durations plus an activation workflow, the events area now works as a free sessions hub for both Google Meet lives and video content, and the login flow now includes email-based password reset.
 
-The next meaningful milestone is not “build admin” anymore. It is to harden what already exists: validate all admin flows end to end, add stronger form validation, add a course detail surface, and then replace the temporary subscription activation flow with real payments and real email delivery.
+The next meaningful milestone is not “build admin” anymore. It is to harden what already exists: validate all admin flows end to end, add stronger form validation, keep refining teacher and parent workflows, and then replace the temporary subscription activation flow with real payments and real email delivery.

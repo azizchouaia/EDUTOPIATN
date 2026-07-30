@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { CheckCircle2, ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,14 +10,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import api, { assetUrl } from "@/lib/api";
+import { ImageUpload } from "@/components/ui/ImageUpload";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AdminListControls } from "@/components/admin/AdminListControls";
 import { CurriculumAdminModule } from "@/components/admin/CurriculumAdminModule";
+import { KhlayelUsageModule } from "@/components/admin/KhlayelUsageModule";
+import { QuizAdminModule } from "@/components/admin/QuizAdminModule";
+import { BulkActionBar, SelectCheckbox, confirmBulkDelete, useBulkSelection } from "@/components/admin/BulkSelection";
 import { GRADE_OPTIONS, SECTION_OPTIONS, formatAcademicTrack, inferSchoolCycle, needsSection, type GradeCode, type SectionCode } from "@/lib/academic";
-import { FormErrors, hasErrors, hasMinLength, isBlank, isNonNegativeInteger, isNonNegativeNumber, isPositiveInteger, isValidDateInput, isValidEmail, isValidSlug, isValidUrl } from "@/lib/validation";
+import { FormErrors, hasErrors, hasMinLength, isBlank, isFutureDateTime, isNonNegativeInteger, isNonNegativeNumber, isPositiveInteger, isValidDateInput, isValidEmail, isValidSlug, isValidUrl } from "@/lib/validation";
 import type { Course, Event, MarketOrder, ParentStudentLink, Product, PromoCode, Reclamation, Subscription, TeamMember, User } from "@/lib/types";
 import { AdminPageIntro } from "./admin";
 
-type ModuleName = "users" | "courses" | "events" | "products" | "orders" | "promo-codes" | "subscriptions" | "reclamations" | "team";
+type ModuleName = "users" | "courses" | "events" | "products" | "orders" | "promo-codes" | "subscriptions" | "reclamations" | "team" | "khlayel" | "quizzes";
 
 type UserForm = {
   first_name: string;
@@ -53,6 +58,8 @@ type EventForm = {
   access_url: string;
   event_date: string;
   seats_total: string;
+  /** true = free (any user); false = subscription required */
+  is_free: boolean;
 };
 
 type ProductForm = {
@@ -77,6 +84,7 @@ type PromoForm = {
 type SubscriptionForm = {
   user_id: string;
   plan: Subscription["plan"];
+  billing_cycle: "1_month" | "3_months" | "1_year";
   status: Subscription["status"];
   start_date: string;
   end_date: string;
@@ -98,10 +106,10 @@ type TeamForm = {
 
 const INITIAL_USER_FORM: UserForm = { first_name: "", last_name: "", email: "", password: "", role: "student", grade_code: "", section_code: "" };
 const INITIAL_COURSE_FORM: CourseForm = { title: "", description: "", category: "", price: "0", duration_hours: "0", lessons_count: "0", cover_image: "" };
-const INITIAL_EVENT_FORM: EventForm = { title: "", description: "", category: "", delivery_type: "google_meet", access_url: "", event_date: "", seats_total: "50" };
+const INITIAL_EVENT_FORM: EventForm = { title: "", description: "", category: "", delivery_type: "google_meet", access_url: "", event_date: "", seats_total: "50", is_free: true };
 const INITIAL_PRODUCT_FORM: ProductForm = { name: "", description: "", price: "0", category: "", tag: "none", stock: "0", image_url: "" };
 const INITIAL_PROMO_FORM: PromoForm = { code: "", discount_percent: "10", product_id: "", max_uses: "", expires_at: "", is_active: true };
-const INITIAL_SUBSCRIPTION_FORM: SubscriptionForm = { user_id: "", plan: "basic", status: "active", start_date: "", end_date: "" };
+const INITIAL_SUBSCRIPTION_FORM: SubscriptionForm = { user_id: "", plan: "basic", billing_cycle: "1_month", status: "active", start_date: "", end_date: "" };
 const INITIAL_TEAM_FORM: TeamForm = { name: "", role: "", bio: "", initials: "", gradient_from: "from-bordeaux", gradient_to: "to-bordeaux-deep", linkedin_url: "", github_url: "", email: "", display_order: "0", is_active: true };
 const INITIAL_PARENT_LINK_FORM: ParentLinkForm = { parent_id: "", student_id: "", relation_type: "parent" };
 
@@ -132,6 +140,10 @@ function AdminModulePage() {
       return <ReclamationsModule />;
     case "team":
       return <TeamModule />;
+    case "khlayel":
+      return <KhlayelUsageModule />;
+    case "quizzes":
+      return <QuizAdminModule />;
     default:
       return (
         <Card className="border-border/70 bg-white/85">
@@ -159,9 +171,24 @@ function UsersModule() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name-asc");
   const [errors, setErrors] = useState<FormErrors<keyof UserForm & string>>({});
+  const [linkSearch, setLinkSearch] = useState("");
   const showSectionSelect = form.role === "student" && needsSection(form.grade_code);
   const parentUsers = users.filter((user) => user.role === "parent");
   const studentUsers = users.filter((user) => user.role === "student");
+
+  const filteredLinks = linkSearch.trim()
+    ? parentLinks.filter((link) => {
+        const q = linkSearch.toLowerCase();
+        return (
+          link.parent_first_name?.toLowerCase().includes(q) ||
+          link.parent_last_name?.toLowerCase().includes(q) ||
+          link.parent_email?.toLowerCase().includes(q) ||
+          link.student_first_name?.toLowerCase().includes(q) ||
+          link.student_last_name?.toLowerCase().includes(q) ||
+          link.student_email?.toLowerCase().includes(q)
+        );
+      })
+    : parentLinks;
 
   const filteredUsers = sortItems(
     users.filter((user) => {
@@ -214,6 +241,22 @@ function UsersModule() {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (error) => toast.error(getErrorMessage(error, "Suppression de l'utilisateur impossible.")),
+  });
+
+  const bulkSelection = useBulkSelection();
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.delete(`/users/${id}`)));
+      return results.filter((r) => r.status === "rejected").length;
+    },
+    onSuccess: (failedCount, ids) => {
+      const okCount = ids.length - failedCount;
+      if (okCount > 0) toast.success(`${okCount} utilisateur(s) supprime(s).`);
+      if (failedCount > 0) toast.error(`${failedCount} suppression(s) ont echoue.`);
+      bulkSelection.clear();
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: (error) => toast.error(getErrorMessage(error, "Suppression groupee impossible.")),
   });
 
   const createParentLinkMutation = useMutation({
@@ -276,7 +319,6 @@ function UsersModule() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <FormInput label="First name" value={form.first_name} onChange={(value) => setForm((prev) => ({ ...prev, first_name: value }))} />
               <FormInput label="First name" value={form.first_name} error={errors.first_name} onChange={(value) => setForm((prev) => ({ ...prev, first_name: value }))} />
               <FormInput label="Last name" value={form.last_name} error={errors.last_name} onChange={(value) => setForm((prev) => ({ ...prev, last_name: value }))} />
             </div>
@@ -327,8 +369,19 @@ function UsersModule() {
             ]}
             sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "name-asc", label: "Name A-Z" }, { value: "name-desc", label: "Name Z-A" }, { value: "email-asc", label: "Email A-Z" }, { value: "email-desc", label: "Email Z-A" }, { value: "recent", label: "Newest first" }] }}
           />
+          <BulkActionBar
+            count={bulkSelection.count}
+            isPending={bulkDeleteMutation.isPending}
+            onClear={bulkSelection.clear}
+            onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
+          />
           <AdminTable
             headers={["Name", "Email", "Role", "Track", "Status", "Actions"]}
+            items={filteredUsers}
+            getId={(user) => user.id}
+            selectedIds={bulkSelection.selectedIds}
+            onToggle={bulkSelection.toggle}
+            onToggleAll={() => bulkSelection.toggleAll(filteredUsers.map((user) => user.id))}
             rows={filteredUsers.map((user) => [
               <div key={`name-${user.id}`}>
                 <div className="font-medium text-foreground">{user.first_name} {user.last_name}</div>
@@ -362,18 +415,22 @@ function UsersModule() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>Parent</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={linkForm.parent_id} onChange={(event) => setLinkForm((prev) => ({ ...prev, parent_id: event.target.value }))}>
-                    <option value="">Select parent</option>
-                    {parentUsers.map((user) => <option key={user.id} value={String(user.id)}>{user.first_name} {user.last_name} · {user.email}</option>)}
-                  </select>
+                  <Label>Parent <span className="text-muted-foreground font-normal text-xs">— type to search</span></Label>
+                  <SearchableUserSelect
+                    users={parentUsers}
+                    value={linkForm.parent_id}
+                    onChange={(id) => setLinkForm((prev) => ({ ...prev, parent_id: id }))}
+                    placeholder="Search parent by name or email…"
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Student</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={linkForm.student_id} onChange={(event) => setLinkForm((prev) => ({ ...prev, student_id: event.target.value }))}>
-                    <option value="">Select student</option>
-                    {studentUsers.map((user) => <option key={user.id} value={String(user.id)}>{user.first_name} {user.last_name} · {user.email}</option>)}
-                  </select>
+                  <Label>Student <span className="text-muted-foreground font-normal text-xs">— type to search</span></Label>
+                  <SearchableUserSelect
+                    users={studentUsers}
+                    value={linkForm.student_id}
+                    onChange={(id) => setLinkForm((prev) => ({ ...prev, student_id: id }))}
+                    placeholder="Search student by name or email…"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Relation</Label>
@@ -392,27 +449,63 @@ function UsersModule() {
             </Card>
             <Card className="border-border/70 bg-background/70">
               <CardHeader>
-                <CardTitle className="text-lg text-bordeaux">Parent-child links</CardTitle>
-                <CardDescription>These links are what authorize the parent dashboard.</CardDescription>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle className="text-lg text-bordeaux">Parent-child links</CardTitle>
+                    <CardDescription>These links authorize the parent dashboard.</CardDescription>
+                  </div>
+                  <div className="relative sm:w-64">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <Input
+                      value={linkSearch}
+                      onChange={(e) => setLinkSearch(e.target.value)}
+                      placeholder="Search parent or student…"
+                      className="pl-9 h-9 text-sm"
+                    />
+                    {linkSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setLinkSearch("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label="Clear search"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {linkSearch && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {filteredLinks.length} result{filteredLinks.length !== 1 ? "s" : ""} for "{linkSearch}"
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 {parentLinks.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">No parent-child links yet.</div>
+                ) : filteredLinks.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">
+                    No links match "{linkSearch}".
+                  </div>
                 ) : (
                   <div className="space-y-3">
-                    {parentLinks.map((link) => (
-                      <div key={link.id} className="rounded-2xl border border-border/70 bg-white p-4">
+                    {filteredLinks.map((link) => (
+                      <div key={link.id} className="rounded-2xl border border-border/70 bg-card p-4">
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div>
-                            <div className="font-medium text-foreground">{link.parent_first_name} {link.parent_last_name}</div>
+                            <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-0.5">Parent</div>
+                            <div className="font-semibold text-foreground">{link.parent_first_name} {link.parent_last_name}</div>
                             <div className="text-xs text-muted-foreground">{link.parent_email}</div>
                           </div>
-                          <div className="text-sm text-muted-foreground">{link.relation_type}</div>
+                          <span className="inline-flex items-center rounded-full border border-gold/30 bg-gold/10 px-2.5 py-0.5 text-xs font-medium text-bordeaux self-start">
+                            {link.relation_type}
+                          </span>
                         </div>
-                        <div className="mt-3 rounded-xl border border-border/70 bg-muted/20 px-3 py-3 text-sm">
-                          <div className="font-medium text-foreground">{link.student_first_name} {link.student_last_name}</div>
+                        <div className="mt-3 rounded-xl border border-border/70 bg-muted/30 px-3 py-3 text-sm">
+                          <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-0.5">Student</div>
+                          <div className="font-semibold text-foreground">{link.student_first_name} {link.student_last_name}</div>
                           <div className="text-xs text-muted-foreground">{link.student_email}</div>
-                          <div className="mt-2 text-xs text-muted-foreground">{formatAcademicTrack({ grade_code: link.grade_code, section_code: link.section_code, year_of_study: null }) ?? "No academic track"}</div>
+                          <div className="mt-1.5 text-xs text-muted-foreground">{formatAcademicTrack({ grade_code: link.grade_code, section_code: link.section_code, year_of_study: null }) ?? "No academic track"}</div>
                         </div>
                         <div className="mt-4 flex justify-end">
                           <DeleteButton onDelete={() => deleteParentLinkMutation.mutate(link.id)} />
@@ -470,6 +563,21 @@ function EventsModule() {
     },
   });
 
+  const bulkSelection = useBulkSelection();
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.delete(`/events/${id}`)));
+      return results.filter((r) => r.status === "rejected").length;
+    },
+    onSuccess: (failedCount, ids) => {
+      const okCount = ids.length - failedCount;
+      if (okCount > 0) toast.success(`${okCount} evenement(s) supprime(s).`);
+      if (failedCount > 0) toast.error(`${failedCount} suppression(s) ont echoue.`);
+      bulkSelection.clear();
+      queryClient.invalidateQueries({ queryKey: ["admin-events"] });
+    },
+  });
+
   return (
     <ModuleScaffold
       eyebrow="Events"
@@ -486,25 +594,44 @@ function EventsModule() {
       }} heading={editingId ? "Edit event" : "Create event"} submitLabel={editingId ? "Save changes" : "Create event"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_EVENT_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
+        <div className="space-y-3">
+          <BulkActionBar
+            count={bulkSelection.count}
+            isPending={bulkDeleteMutation.isPending}
+            onClear={bulkSelection.clear}
+            onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
+          />
         <div className="grid gap-4 xl:grid-cols-2">
           {events.map((event) => (
-            <Card key={event.id} className="border-border/70 bg-white/85">
+            <Card key={event.id} className={`relative border-border/70 bg-white/85 ${bulkSelection.selectedIds.has(event.id) ? "ring-2 ring-destructive/40" : ""}`}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-display text-xl font-semibold text-foreground">{event.title}</div>
-                    <div className="text-sm text-muted-foreground">{new Date(event.event_date).toLocaleString()} · {event.first_name} {event.last_name}</div>
+                  <div className="flex items-start gap-3">
+                    <SelectCheckbox checked={bulkSelection.selectedIds.has(event.id)} onChange={() => bulkSelection.toggle(event.id)} ariaLabel={`Select event ${event.id}`} />
+                    <div>
+                      <div className="font-display text-xl font-semibold text-foreground">{event.title}</div>
+                      <div className="text-sm text-muted-foreground">{new Date(event.event_date).toLocaleString()} · {event.first_name} {event.last_name}</div>
+                    </div>
                   </div>
                   <Badge className={event.is_cancelled ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}>{event.is_cancelled ? "Annule" : "Actif"}</Badge>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-sm text-muted-foreground">
-                  <span>{event.delivery_type === "video" ? "Video gratuite" : `Google Meet · ${event.seats_taken}/${event.seats_total} places`}</span>
+                  <span>
+                    {event.delivery_type === "video"
+                      ? "Video"
+                      : event.seats_total === 0
+                        ? "Google Meet · Illimite"
+                        : `Google Meet · ${event.seats_taken}/${event.seats_total} places`}
+                  </span>
+                  <Badge className={event.is_free !== false ? "bg-emerald-100 text-emerald-800 text-xs" : "bg-amber-100 text-amber-800 text-xs"}>
+                    {event.is_free !== false ? "Gratuit" : "Abonnes"}
+                  </Badge>
                   {event.access_url ? <a href={event.access_url} target="_blank" rel="noreferrer" className="text-bordeaux hover:underline">Ouvrir le lien</a> : null}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <EditButton onClick={() => {
                     setEditingId(event.id);
-                    setForm({ title: event.title, description: event.description ?? "", category: event.category ?? "", delivery_type: event.delivery_type, access_url: event.access_url ?? "", event_date: toDateTimeLocal(event.event_date), seats_total: String(event.seats_total ?? 50) });
+                    setForm({ title: event.title, description: event.description ?? "", category: event.category ?? "", delivery_type: event.delivery_type, access_url: event.access_url ?? "", event_date: toDateTimeLocal(event.event_date), seats_total: String(event.seats_total ?? 50), is_free: event.is_free !== false });
                   }} />
                   <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateMutation.mutate({ id: event.id, data: { is_cancelled: event.is_cancelled ? 0 : 1 } })}>{event.is_cancelled ? "Restaurer" : "Annuler"}</Button>
                   <DeleteButton onDelete={() => deleteMutation.mutate(event.id)} />
@@ -512,6 +639,7 @@ function EventsModule() {
               </CardContent>
             </Card>
           ))}
+        </div>
         </div>
       )}
     </ModuleScaffold>
@@ -554,6 +682,21 @@ function ProductsModule() {
     },
   });
 
+  const bulkSelection = useBulkSelection();
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.delete(`/market/products/${id}`)));
+      return results.filter((r) => r.status === "rejected").length;
+    },
+    onSuccess: (failedCount, ids) => {
+      const okCount = ids.length - failedCount;
+      if (okCount > 0) toast.success(`${okCount} produit(s) supprime(s).`);
+      if (failedCount > 0) toast.error(`${failedCount} suppression(s) ont echoue (stock lie a des commandes ?).`);
+      bulkSelection.clear();
+      queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+    },
+  });
+
   return (
     <ModuleScaffold
       eyebrow="Products"
@@ -570,14 +713,24 @@ function ProductsModule() {
       }} heading={editingId ? "Edit product" : "Create product"} submitLabel={editingId ? "Save changes" : "Create product"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_PRODUCT_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
+        <div className="space-y-3">
+          <BulkActionBar
+            count={bulkSelection.count}
+            isPending={bulkDeleteMutation.isPending}
+            onClear={bulkSelection.clear}
+            onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
+          />
         <div className="grid gap-4 xl:grid-cols-2">
           {products.map((product) => (
-            <Card key={product.id} className="border-border/70 bg-white/85">
+            <Card key={product.id} className={`relative border-border/70 bg-white/85 ${bulkSelection.selectedIds.has(product.id) ? "ring-2 ring-destructive/40" : ""}`}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-display text-xl font-semibold text-foreground">{product.name}</div>
-                    <div className="text-sm text-muted-foreground">{product.category ?? "No category"} · stock {product.stock}</div>
+                  <div className="flex items-start gap-3">
+                    <SelectCheckbox checked={bulkSelection.selectedIds.has(product.id)} onChange={() => bulkSelection.toggle(product.id)} ariaLabel={`Select product ${product.id}`} />
+                    <div>
+                      <div className="font-display text-xl font-semibold text-foreground">{product.name}</div>
+                      <div className="text-sm text-muted-foreground">{product.category ?? "No category"} · stock {product.stock}</div>
+                    </div>
                   </div>
                   <Badge className={product.is_active ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{product.is_active ? "Active" : "Inactive"}</Badge>
                 </div>
@@ -593,6 +746,7 @@ function ProductsModule() {
               </CardContent>
             </Card>
           ))}
+        </div>
         </div>
       )}
     </ModuleScaffold>
@@ -738,6 +892,21 @@ function PromoCodesModule() {
     },
   });
 
+  const bulkSelection = useBulkSelection();
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.delete(`/market/promo-codes/${id}`)));
+      return results.filter((r) => r.status === "rejected").length;
+    },
+    onSuccess: (failedCount, ids) => {
+      const okCount = ids.length - failedCount;
+      if (okCount > 0) toast.success(`${okCount} code(s) promo supprime(s).`);
+      if (failedCount > 0) toast.error(`${failedCount} suppression(s) ont echoue.`);
+      bulkSelection.clear();
+      queryClient.invalidateQueries({ queryKey: ["admin-promo-codes"] });
+    },
+  });
+
   return (
     <ModuleScaffold
       eyebrow="Promo Codes"
@@ -764,8 +933,19 @@ function PromoCodesModule() {
             ]}
             sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "code-asc", label: "Code A-Z" }, { value: "code-desc", label: "Code Z-A" }, { value: "discount-desc", label: "Highest discount" }, { value: "discount-asc", label: "Lowest discount" }, { value: "usage-desc", label: "Most used" }, { value: "usage-asc", label: "Least used" }] }}
           />
+          <BulkActionBar
+            count={bulkSelection.count}
+            isPending={bulkDeleteMutation.isPending}
+            onClear={bulkSelection.clear}
+            onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
+          />
           <AdminTable
             headers={["Code", "Discount", "Product", "Usage", "Status", "Actions"]}
+            items={filteredPromoCodes}
+            getId={(promo) => promo.id}
+            selectedIds={bulkSelection.selectedIds}
+            onToggle={bulkSelection.toggle}
+            onToggleAll={() => bulkSelection.toggleAll(filteredPromoCodes.map((promo) => promo.id))}
             rows={filteredPromoCodes.map((promo) => [
               <div key={`code-${promo.id}`} className="font-medium text-foreground">{promo.code}</div>,
               `${promo.discount_percent}%`,
@@ -793,6 +973,7 @@ function SubscriptionsModule() {
   const { data: users = [] } = useQuery<User[]>({ queryKey: ["admin-users-options"], queryFn: async () => (await api.get<User[]>("/users")).data });
   const [form, setForm] = useState<SubscriptionForm>(INITIAL_SUBSCRIPTION_FORM);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<{ url: string; name: string; subscriptionId: number; isPdf: boolean } | null>(null);
   const [errors, setErrors] = useState<FormErrors<keyof SubscriptionForm & string>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -850,6 +1031,21 @@ function SubscriptionsModule() {
       queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] });
     },
   });
+
+  const bulkSelection = useBulkSelection();
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.delete(`/subscriptions/${id}`)));
+      return results.filter((r) => r.status === "rejected").length;
+    },
+    onSuccess: (failedCount, ids) => {
+      const okCount = ids.length - failedCount;
+      if (okCount > 0) toast.success(`${okCount} abonnement(s) supprime(s).`);
+      if (failedCount > 0) toast.error(`${failedCount} suppression(s) ont echoue.`);
+      bulkSelection.clear();
+      queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] });
+    },
+  });
   const approveMutation = useMutation({
     mutationFn: (id: number) => api.post(`/subscriptions/${id}/approve-bank-transfer`),
     onSuccess: (response) => {
@@ -859,8 +1055,57 @@ function SubscriptionsModule() {
     },
     onError: (error) => toast.error(getErrorMessage(error, "Validation du virement impossible.")),
   });
+  const regenerateMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/subscriptions/${id}/regenerate-code`),
+    onSuccess: (response) => {
+      const devCode = response.data?.development_code as string | undefined;
+      toast.success(devCode ? `Code regenere. Code dev : ${devCode}` : "Code regenere. Informez l'utilisateur.");
+      queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] });
+    },
+    onError: (error) => toast.error(getErrorMessage(error, "Regeneration du code impossible.")),
+  });
 
   return (
+    <>
+    {/* ── Receipt preview dialog ──────────────────────────────────────────── */}
+    <Dialog open={Boolean(receiptPreview)} onOpenChange={(open) => { if (!open) setReceiptPreview(null); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl">
+            Receipt — {receiptPreview?.name ?? "Document"}
+          </DialogTitle>
+        </DialogHeader>
+        {receiptPreview && (
+          <div className="space-y-4">
+            {receiptPreview.isPdf ? (
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-muted/40 py-10 text-center">
+                <p className="text-sm text-muted-foreground">PDF receipt — open in a new tab to view</p>
+                <Button asChild variant="outline" className="border-bordeaux text-bordeaux">
+                  <a href={receiptPreview.url} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Open PDF</a>
+                </Button>
+              </div>
+            ) : (
+              <img
+                src={receiptPreview.url}
+                alt="Bank transfer receipt"
+                className="w-full rounded-xl border border-border object-contain max-h-[60vh]"
+              />
+            )}
+            {/* Approve from within the preview */}
+            {subscriptions.find((s) => s.id === receiptPreview.subscriptionId)?.status === "pending_approval" && (
+              <Button
+                className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
+                onClick={() => { approveMutation.mutate(receiptPreview.subscriptionId); setReceiptPreview(null); }}
+                disabled={approveMutation.isPending}
+              >
+                {approveMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approving…</> : <><CheckCircle2 className="mr-2 h-4 w-4" /> Approve bank transfer</>}
+              </Button>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+
     <ModuleScaffold
       eyebrow="Subscriptions"
       title="Subscriptions module"
@@ -887,8 +1132,19 @@ function SubscriptionsModule() {
             ]}
             sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "end-desc", label: "Ends latest" }, { value: "end-asc", label: "Ends soonest" }, { value: "start-desc", label: "Starts latest" }, { value: "start-asc", label: "Starts earliest" }, { value: "name-asc", label: "Name A-Z" }, { value: "name-desc", label: "Name Z-A" }] }}
           />
+          <BulkActionBar
+            count={bulkSelection.count}
+            isPending={bulkDeleteMutation.isPending}
+            onClear={bulkSelection.clear}
+            onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
+          />
           <AdminTable
             headers={["User", "Plan", "Payment", "Dates", "Status", "Actions"]}
+            items={filteredSubscriptions}
+            getId={(subscription) => subscription.id}
+            selectedIds={bulkSelection.selectedIds}
+            onToggle={bulkSelection.toggle}
+            onToggleAll={() => bulkSelection.toggleAll(filteredSubscriptions.map((subscription) => subscription.id))}
             rows={filteredSubscriptions.map((subscription) => [
               <div key={`user-${subscription.id}`}>
                 <div className="font-medium text-foreground">{subscription.first_name} {subscription.last_name}</div>
@@ -917,24 +1173,32 @@ function SubscriptionsModule() {
               <div key={`actions-${subscription.id}`} className="flex flex-wrap gap-2">
                 {subscription.bank_receipt_path ? (
                   <Button
-                    asChild
                     size="sm"
                     variant="outline"
                     className="border-bordeaux text-bordeaux"
+                    onClick={() => {
+                      const url = assetUrl(subscription.bank_receipt_path!) ?? subscription.bank_receipt_path!;
+                      const name = subscription.bank_receipt_original_name ?? "receipt";
+                      const isPdf = name.toLowerCase().endsWith(".pdf");
+                      setReceiptPreview({ url, name, subscriptionId: subscription.id, isPdf });
+                    }}
                   >
-                    <a href={assetUrl(subscription.bank_receipt_path) ?? undefined} target="_blank" rel="noreferrer">
-                      <ExternalLink className="mr-1 h-3.5 w-3.5" /> View receipt
-                    </a>
+                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> View receipt
                   </Button>
                 ) : null}
                 {subscription.payment_method === "bank_transfer" && subscription.status === "pending_approval" ? (
-                  <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => approveMutation.mutate(subscription.id)}>
-                    Approve receipt
+                  <Button size="sm" variant="outline" className="border-emerald-600 text-emerald-700" onClick={() => approveMutation.mutate(subscription.id)} disabled={approveMutation.isPending}>
+                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Approve
+                  </Button>
+                ) : null}
+                {subscription.status === "pending_code" ? (
+                  <Button size="sm" variant="outline" className="border-amber-600 text-amber-700" onClick={() => regenerateMutation.mutate(subscription.id)}>
+                    Regenerate code
                   </Button>
                 ) : null}
                 <EditButton onClick={() => {
                   setEditingId(subscription.id);
-                  setForm({ user_id: String(subscription.user_id), plan: subscription.plan, status: subscription.status, start_date: toDate(subscription.start_date), end_date: toDate(subscription.end_date) });
+                  setForm({ user_id: String(subscription.user_id), plan: subscription.plan, billing_cycle: (subscription.billing_cycle as SubscriptionForm["billing_cycle"]) ?? "1_month", status: subscription.status, start_date: toDate(subscription.start_date), end_date: toDate(subscription.end_date) });
                 }} />
                 <DeleteButton onDelete={() => deleteMutation.mutate(subscription.id)} />
               </div>,
@@ -943,6 +1207,7 @@ function SubscriptionsModule() {
         </>
       )}
     </ModuleScaffold>
+    </>
   );
 }
 
@@ -951,6 +1216,20 @@ function ReclamationsModule() {
   const { data: reclamations = [], isLoading } = useQuery<Array<Reclamation & { first_name: string; last_name: string; email: string }>>({ queryKey: ["admin-reclamations"], queryFn: async () => (await api.get<Array<Reclamation & { first_name: string; last_name: string; email: string }>>("/reclamations")).data });
   const updateMutation = useMutation({ mutationFn: ({ id, status }: { id: number; status: Reclamation["status"] }) => api.put(`/reclamations/${id}/status`, { status }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-reclamations"] }) });
   const deleteMutation = useMutation({ mutationFn: (id: number) => api.delete(`/reclamations/${id}`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-reclamations"] }) });
+  const bulkSelection = useBulkSelection();
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.delete(`/reclamations/${id}`)));
+      return results.filter((r) => r.status === "rejected").length;
+    },
+    onSuccess: (failedCount, ids) => {
+      const okCount = ids.length - failedCount;
+      if (okCount > 0) toast.success(`${okCount} ticket(s) supprime(s).`);
+      if (failedCount > 0) toast.error(`${failedCount} suppression(s) ont echoue.`);
+      bulkSelection.clear();
+      queryClient.invalidateQueries({ queryKey: ["admin-reclamations"] });
+    },
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -983,8 +1262,19 @@ function ReclamationsModule() {
             ]}
             sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "recent", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "subject-asc", label: "Subject A-Z" }, { value: "subject-desc", label: "Subject Z-A" }] }}
           />
+          <BulkActionBar
+            count={bulkSelection.count}
+            isPending={bulkDeleteMutation.isPending}
+            onClear={bulkSelection.clear}
+            onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
+          />
           <AdminTable
             headers={["User", "Subject", "Category", "Status", "Actions"]}
+            items={filteredReclamations}
+            getId={(ticket) => ticket.id}
+            selectedIds={bulkSelection.selectedIds}
+            onToggle={bulkSelection.toggle}
+            onToggleAll={() => bulkSelection.toggleAll(filteredReclamations.map((ticket) => ticket.id))}
             rows={filteredReclamations.map((ticket) => [
               <div key={`user-${ticket.id}`}>
                 <div className="font-medium text-foreground">{ticket.first_name} {ticket.last_name}</div>
@@ -1042,6 +1332,21 @@ function TeamModule() {
     },
   });
 
+  const bulkSelection = useBulkSelection();
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.delete(`/team/${id}`)));
+      return results.filter((r) => r.status === "rejected").length;
+    },
+    onSuccess: (failedCount, ids) => {
+      const okCount = ids.length - failedCount;
+      if (okCount > 0) toast.success(`${okCount} membre(s) supprime(s).`);
+      if (failedCount > 0) toast.error(`${failedCount} suppression(s) ont echoue.`);
+      bulkSelection.clear();
+      queryClient.invalidateQueries({ queryKey: ["admin-team"] });
+    },
+  });
+
   return (
     <ModuleScaffold
       eyebrow="Team"
@@ -1058,14 +1363,24 @@ function TeamModule() {
       }} heading={editingId ? "Edit team member" : "Create team member"} submitLabel={editingId ? "Save changes" : "Create member"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_TEAM_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
+        <div className="space-y-3">
+          <BulkActionBar
+            count={bulkSelection.count}
+            isPending={bulkDeleteMutation.isPending}
+            onClear={bulkSelection.clear}
+            onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
+          />
         <div className="grid gap-4 xl:grid-cols-2">
           {members.map((member) => (
-            <Card key={member.id} className="border-border/70 bg-white/85">
+            <Card key={member.id} className={`relative border-border/70 bg-white/85 ${bulkSelection.selectedIds.has(member.id) ? "ring-2 ring-destructive/40" : ""}`}>
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-display text-xl font-semibold text-foreground">{member.name}</div>
-                    <div className="text-sm text-muted-foreground">{member.role}</div>
+                  <div className="flex items-start gap-3">
+                    <SelectCheckbox checked={bulkSelection.selectedIds.has(member.id)} onChange={() => bulkSelection.toggle(member.id)} ariaLabel={`Select member ${member.id}`} />
+                    <div>
+                      <div className="font-display text-xl font-semibold text-foreground">{member.name}</div>
+                      <div className="text-sm text-muted-foreground">{member.role}</div>
+                    </div>
                   </div>
                   <Badge className={member.is_active ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{member.is_active ? "Visible" : "Hidden"}</Badge>
                 </div>
@@ -1081,6 +1396,7 @@ function TeamModule() {
               </CardContent>
             </Card>
           ))}
+        </div>
         </div>
       )}
     </ModuleScaffold>
@@ -1139,6 +1455,126 @@ function FormTextarea({ label, value, onChange, rows = 4, error, placeholder }: 
   )
 }
 
+function SearchableUserSelect({
+  users,
+  value,
+  onChange,
+  placeholder,
+}: {
+  users: User[];
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = users.find((u) => String(u.id) === value);
+
+  const filtered = (() => {
+    const q = (selected ? query : query).toLowerCase().trim();
+    if (!q) return users.slice(0, 50); // cap initial list to 50
+    return users.filter((u) =>
+      `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(q)
+    );
+  })();
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const displayValue = selected ? `${selected.first_name} ${selected.last_name}` : query;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          value={displayValue}
+          placeholder={placeholder}
+          className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-8 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-gold focus:ring-offset-2"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (value) onChange(""); // clear selection when user types
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          autoComplete="off"
+        />
+        {(value || query) && (
+          <button
+            type="button"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            onMouseDown={(e) => { e.preventDefault(); onChange(""); setQuery(""); inputRef.current?.focus(); }}
+            aria-label="Clear"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Selected user badge */}
+      {selected && (
+        <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-gold/30 bg-gold/5 px-3 py-1.5 text-sm">
+          <div className="h-6 w-6 rounded-full bg-gradient-bordeaux flex items-center justify-center text-[10px] font-bold text-primary-foreground shrink-0">
+            {selected.first_name[0]}{selected.last_name[0]}
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium text-foreground truncate">{selected.first_name} {selected.last_name}</div>
+            <div className="text-xs text-muted-foreground truncate">{selected.email}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Dropdown */}
+      {open && !selected && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-5 text-sm text-center text-muted-foreground">No match found.</div>
+          ) : (
+            <div className="max-h-52 overflow-y-auto">
+              {filtered.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/60 transition-colors border-b border-border/40 last:border-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onChange(String(u.id));
+                    setQuery("");
+                    setOpen(false);
+                  }}
+                >
+                  <div className="h-7 w-7 rounded-full bg-gradient-bordeaux flex items-center justify-center text-[10px] font-bold text-primary-foreground shrink-0">
+                    {u.first_name[0]}{u.last_name[0]}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm text-foreground truncate">{u.first_name} {u.last_name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DeleteButton({ onDelete }: { onDelete: () => void }) {
   return (
     <Button size="sm" variant="outline" className="border-destructive text-destructive" onClick={() => { if (window.confirm("Delete this item?")) onDelete(); }}>
@@ -1163,12 +1599,28 @@ function LoadingCard() {
   );
 }
 
-function AdminTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
+function AdminTable<T>({ headers, rows, items, getId, selectedIds, onToggle, onToggleAll }: {
+  headers: string[];
+  rows: ReactNode[][];
+  items?: T[];
+  getId?: (item: T) => number;
+  selectedIds?: Set<number>;
+  onToggle?: (id: number) => void;
+  onToggleAll?: () => void;
+}) {
+  const selectable = Boolean(items && getId && selectedIds && onToggle && onToggleAll);
+  const allChecked = selectable && items!.length > 0 && items!.every((item) => selectedIds!.has(getId!(item)));
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead>
           <tr className="border-b border-border text-muted-foreground">
+            {selectable ? (
+              <th className="w-10 px-3 py-3">
+                <SelectCheckbox checked={allChecked} onChange={() => onToggleAll!()} ariaLabel="Select all" />
+              </th>
+            ) : null}
             {headers.map((header) => (
               <th key={header} className="px-3 py-3 font-medium">{header}</th>
             ))}
@@ -1177,18 +1629,26 @@ function AdminTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] 
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={headers.length} className="px-3 py-8 text-center text-muted-foreground">
+              <td colSpan={headers.length + (selectable ? 1 : 0)} className="px-3 py-8 text-center text-muted-foreground">
                 No records yet.
               </td>
             </tr>
           ) : null}
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex} className="border-b border-border/70 align-top">
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="px-3 py-3">{cell}</td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, rowIndex) => {
+            const id = selectable ? getId!(items![rowIndex]) : undefined;
+            return (
+              <tr key={rowIndex} className={`border-b border-border/70 align-top ${selectable && id !== undefined && selectedIds!.has(id) ? "bg-destructive/5" : ""}`}>
+                {selectable ? (
+                  <td className="px-3 py-3">
+                    <SelectCheckbox checked={selectedIds!.has(id!)} onChange={() => onToggle!(id!)} ariaLabel={`Select row ${id}`} />
+                  </td>
+                ) : null}
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="px-3 py-3">{cell}</td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1205,7 +1665,7 @@ function SimpleCourseForm({ form, setForm, isPending, onSubmit, heading, submitL
         <FormInput label="Price" type="number" value={form.price} error={errors.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
         <FormInput label="Duration hours" type="number" value={form.duration_hours} error={errors.duration_hours} onChange={(value) => setForm((prev) => ({ ...prev, duration_hours: value }))} />
         <FormInput label="Lessons count" type="number" value={form.lessons_count} error={errors.lessons_count} onChange={(value) => setForm((prev) => ({ ...prev, lessons_count: value }))} />
-        <FormInput label="Cover image URL" value={form.cover_image} error={errors.cover_image} onChange={(value) => setForm((prev) => ({ ...prev, cover_image: value }))} />
+        <ImageUpload label="Image de couverture" value={form.cover_image} onChange={(url) => setForm((prev) => ({ ...prev, cover_image: url }))} />
         <FormTextarea label="Description" value={form.description} error={errors.description} onChange={(value) => setForm((prev) => ({ ...prev, description: value }))} />
         <div className="flex flex-wrap gap-3">
           <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
@@ -1217,16 +1677,107 @@ function SimpleCourseForm({ form, setForm, isPending, onSubmit, heading, submitL
 }
 
 function SimpleEventForm({ form, setForm, isPending, onSubmit, heading, submitLabel, onCancel, errors = {} }: { form: EventForm; setForm: Dispatch<SetStateAction<EventForm>>; isPending: boolean; onSubmit: () => void; heading: string; submitLabel: string; onCancel?: () => void; errors?: FormErrors<keyof EventForm & string> }) {
-  const isVideo = form.delivery_type === "video";
+  const isVideo         = form.delivery_type === "video";
+  const isUnlimitedLive = !isVideo && form.seats_total === "0";
 
   return (
-    <Card className="border-border/70 bg-white/85"><CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader><CardContent className="grid gap-4"><FormInput label="Titre" value={form.title} error={errors.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} /><FormInput label="Categorie" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} /><div className="space-y-1.5"><Label>Type de session</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.delivery_type ? "border-destructive" : "border-input"}`} value={form.delivery_type} onChange={(e) => setForm((prev) => ({ ...prev, delivery_type: e.target.value as Event["delivery_type"], seats_total: e.target.value === "video" ? "0" : prev.seats_total || "50" }))}><option value="google_meet">Live Google Meet</option><option value="video">Video gratuite</option></select>{errors.delivery_type ? <p className="text-xs text-destructive">{errors.delivery_type}</p> : null}</div><FormInput label={isVideo ? "Lien video" : "Lien Google Meet"} value={form.access_url} error={errors.access_url} onChange={(value) => setForm((prev) => ({ ...prev, access_url: value }))} /><FormInput label="Date et heure" type="datetime-local" value={form.event_date} error={errors.event_date} onChange={(value) => setForm((prev) => ({ ...prev, event_date: value }))} />{isVideo ? null : <FormInput label="Places" type="number" value={form.seats_total} error={errors.seats_total} onChange={(value) => setForm((prev) => ({ ...prev, seats_total: value }))} />}<FormTextarea label="Description" value={form.description} error={errors.description} onChange={(value) => setForm((prev) => ({ ...prev, description: value }))} /><div className="flex flex-wrap gap-3"><Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>{onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Annuler</Button> : null}</div></CardContent></Card>
+    <Card className="border-border/70 bg-card">
+      <CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader>
+      <CardContent className="grid gap-4">
+        <FormInput label="Titre" value={form.title} error={errors.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} />
+        <FormInput label="Categorie" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
+
+        {/* Type */}
+        <div className="space-y-1.5">
+          <Label>Type de session</Label>
+          <select
+            className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.delivery_type ? "border-destructive" : "border-input"}`}
+            value={form.delivery_type}
+            onChange={(e) => setForm((prev) => ({ ...prev, delivery_type: e.target.value as Event["delivery_type"], seats_total: e.target.value === "video" ? "0" : prev.seats_total || "50" }))}
+          >
+            <option value="google_meet">Live Google Meet</option>
+            <option value="video">Video</option>
+          </select>
+          {errors.delivery_type ? <p className="text-xs text-destructive">{errors.delivery_type}</p> : null}
+        </div>
+
+        {/* Access mode */}
+        <div className="space-y-1.5">
+          <Label>Acces</Label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, is_free: true }))}
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${form.is_free ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+            >
+              Gratuit
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, is_free: false }))}
+              className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${!form.is_free ? "border-bordeaux bg-bordeaux/5 text-bordeaux" : "border-border text-muted-foreground hover:border-foreground/30"}`}
+            >
+              Abonnes uniquement
+            </button>
+          </div>
+        </div>
+
+        <FormInput label={isVideo ? "Lien video" : "Lien Google Meet"} value={form.access_url} error={errors.access_url} onChange={(value) => setForm((prev) => ({ ...prev, access_url: value }))} />
+        <FormInput label="Date et heure" type="datetime-local" value={form.event_date} error={errors.event_date} onChange={(value) => setForm((prev) => ({ ...prev, event_date: value }))} />
+
+        {/* Seats (live only) */}
+        {!isVideo ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Places</Label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={isUnlimitedLive}
+                  onChange={(e) => setForm((prev) => ({ ...prev, seats_total: e.target.checked ? "0" : "50" }))}
+                  className="rounded"
+                />
+                Illimite (aucune inscription requise)
+              </label>
+            </div>
+            {!isUnlimitedLive ? (
+              <FormInput label="" value={form.seats_total} type="number" error={errors.seats_total} onChange={(value) => setForm((prev) => ({ ...prev, seats_total: value }))} />
+            ) : (
+              <p className="text-xs text-muted-foreground">Tous les utilisateurs eligibles rejoignent directement au debut du live.</p>
+            )}
+          </div>
+        ) : null}
+
+        <FormTextarea label="Description" value={form.description} error={errors.description} onChange={(value) => setForm((prev) => ({ ...prev, description: value }))} />
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">
+            {isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}
+          </Button>
+          {onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Annuler</Button> : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function SimpleProductForm({ form, setForm, isPending, onSubmit, heading, submitLabel, onCancel, errors = {} }: { form: ProductForm; setForm: Dispatch<SetStateAction<ProductForm>>; isPending: boolean; onSubmit: () => void; heading: string; submitLabel: string; onCancel?: () => void; errors?: FormErrors<keyof ProductForm & string> }) {
   return (
-    <Card className="border-border/70 bg-white/85"><CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader><CardContent className="grid gap-4"><FormInput label="Name" value={form.name} error={errors.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} /><FormInput label="Category" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} /><FormInput label="Price" type="number" value={form.price} error={errors.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} /><FormInput label="Stock" type="number" value={form.stock} error={errors.stock} onChange={(value) => setForm((prev) => ({ ...prev, stock: value }))} /><FormSelect label="Tag" value={form.tag} options={["none", "bestseller", "new", "limited", "promo"]} error={errors.tag} onChange={(value) => setForm((prev) => ({ ...prev, tag: value as Product["tag"] }))} /><FormInput label="Image URL" value={form.image_url} error={errors.image_url} onChange={(value) => setForm((prev) => ({ ...prev, image_url: value }))} /><FormTextarea label="Description" value={form.description} error={errors.description} onChange={(value) => setForm((prev) => ({ ...prev, description: value }))} /><div className="flex flex-wrap gap-3"><Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>{onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}</div></CardContent></Card>
+    <Card className="border-border/70 bg-white/85">
+      <CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader>
+      <CardContent className="grid gap-4">
+        <FormInput label="Name" value={form.name} error={errors.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
+        <FormInput label="Category" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
+        <FormInput label="Price" type="number" value={form.price} error={errors.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
+        <FormInput label="Stock" type="number" value={form.stock} error={errors.stock} onChange={(value) => setForm((prev) => ({ ...prev, stock: value }))} />
+        <FormSelect label="Tag" value={form.tag} options={["none", "bestseller", "new", "limited", "promo"]} error={errors.tag} onChange={(value) => setForm((prev) => ({ ...prev, tag: value as Product["tag"] }))} />
+        <ImageUpload label="Image du produit" value={form.image_url} onChange={(url) => setForm((prev) => ({ ...prev, image_url: url }))} />
+        <FormTextarea label="Description" value={form.description} error={errors.description} onChange={(value) => setForm((prev) => ({ ...prev, description: value }))} />
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
+          {onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1238,7 +1789,35 @@ function SimplePromoForm({ form, setForm, products, isPending, onSubmit, heading
 
 function SimpleSubscriptionForm({ form, setForm, users, isPending, onSubmit, heading, submitLabel, onCancel, errors = {} }: { form: SubscriptionForm; setForm: Dispatch<SetStateAction<SubscriptionForm>>; users: User[]; isPending: boolean; onSubmit: () => void; heading: string; submitLabel: string; onCancel?: () => void; errors?: FormErrors<keyof SubscriptionForm & string> }) {
   return (
-    <Card className="border-border/70 bg-white/85"><CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader><CardContent className="grid gap-4"><div className="space-y-1.5"><Label>User</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.user_id ? "border-destructive" : "border-input"}`} value={form.user_id} onChange={(e) => setForm((prev) => ({ ...prev, user_id: e.target.value }))}><option value="">Select user</option>{users.map((user) => <option key={user.id} value={String(user.id)}>{user.first_name} {user.last_name} · {user.email}</option>)}</select>{errors.user_id ? <p className="text-xs text-destructive">{errors.user_id}</p> : null}</div><FormSelect label="Plan" value={form.plan} options={["basic", "premium", "enterprise"]} error={errors.plan} onChange={(value) => setForm((prev) => ({ ...prev, plan: value as Subscription["plan"] }))} /><FormSelect label="Status" value={form.status} options={["pending_receipt", "pending_approval", "pending_code", "active", "expired", "cancelled"]} error={errors.status} onChange={(value) => setForm((prev) => ({ ...prev, status: value as Subscription["status"] }))} /><FormInput label="Start date" type="date" value={form.start_date} error={errors.start_date} onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))} /><FormInput label="End date" type="date" value={form.end_date} error={errors.end_date} onChange={(value) => setForm((prev) => ({ ...prev, end_date: value }))} /><div className="flex flex-wrap gap-3"><Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>{onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}</div></CardContent></Card>
+    <Card className="border-border/70 bg-white/85">
+      <CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="space-y-1.5">
+          <Label>User</Label>
+          <select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.user_id ? "border-destructive" : "border-input"}`} value={form.user_id} onChange={(e) => setForm((prev) => ({ ...prev, user_id: e.target.value }))}>
+            <option value="">Select user</option>
+            {users.map((user) => <option key={user.id} value={String(user.id)}>{user.first_name} {user.last_name} · {user.email}</option>)}
+          </select>
+          {errors.user_id ? <p className="text-xs text-destructive">{errors.user_id}</p> : null}
+        </div>
+        <FormSelect label="Plan" value={form.plan} options={["basic", "premium", "enterprise"]} error={errors.plan} onChange={(value) => setForm((prev) => ({ ...prev, plan: value as Subscription["plan"] }))} />
+        <div className="space-y-1.5">
+          <Label>Billing cycle</Label>
+          <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.billing_cycle} onChange={(e) => setForm((prev) => ({ ...prev, billing_cycle: e.target.value as SubscriptionForm["billing_cycle"] }))}>
+            <option value="1_month">1 month</option>
+            <option value="3_months">3 months</option>
+            <option value="1_year">1 year</option>
+          </select>
+        </div>
+        <FormSelect label="Status" value={form.status} options={["pending_receipt", "pending_approval", "pending_code", "active", "expired", "cancelled"]} error={errors.status} onChange={(value) => setForm((prev) => ({ ...prev, status: value as Subscription["status"] }))} />
+        <FormInput label="Start date" type="date" value={form.start_date} error={errors.start_date} onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))} />
+        <FormInput label="End date" type="date" value={form.end_date} error={errors.end_date} onChange={(value) => setForm((prev) => ({ ...prev, end_date: value }))} />
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
+          {onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1268,7 +1847,9 @@ function eventPayload(form: EventForm) {
     delivery_type: form.delivery_type,
     access_url: form.access_url,
     event_date: new Date(form.event_date).toISOString(),
-    seats_total: form.delivery_type === "video" ? 0 : Number(form.seats_total || 50),
+    // video → 0; unlimited live → 0 (seats_total="0"); limited live → positive number
+    seats_total: form.delivery_type === "video" ? 0 : Number(form.seats_total ?? 50),
+    is_free: form.is_free ? 1 : 0,
   };
 }
 
@@ -1299,6 +1880,7 @@ function subscriptionPayload(form: SubscriptionForm) {
   return {
     user_id: Number(form.user_id),
     plan: form.plan,
+    billing_cycle: form.billing_cycle,
     status: form.status,
     start_date: form.start_date,
     end_date: form.end_date,
@@ -1365,7 +1947,8 @@ function validateAdminEventForm(form: EventForm): FormErrors<keyof EventForm & s
   if (isBlank(form.category)) errors.category = "La categorie est obligatoire"
   if (!isValidUrl(form.access_url)) errors.access_url = form.delivery_type === "video" ? "L'URL de la video est invalide" : "Le lien Google Meet est invalide"
   if (form.delivery_type === "google_meet" ? !isFutureDateTime(form.event_date) : !isValidDateInput(form.event_date)) errors.event_date = form.delivery_type === "google_meet" ? "Choisissez une date et une heure futures" : "Choisissez une date et une heure valides"
-  if (form.delivery_type === "google_meet" && !isPositiveInteger(form.seats_total, 1)) errors.seats_total = "Le nombre de places doit etre au moins egal a 1"
+  // seats_total: 0 = unlimited, positive = limited; both are valid for live events
+  if (form.delivery_type === "google_meet" && !isNonNegativeInteger(form.seats_total)) errors.seats_total = "Le nombre de places doit etre 0 (illimite) ou un entier positif"
   if (!isBlank(form.description) && !hasMinLength(form.description, 10)) errors.description = "La description doit contenir au moins 10 caracteres si elle est renseignee"
   return errors
 }
@@ -1376,7 +1959,7 @@ function validateProductForm(form: ProductForm): FormErrors<keyof ProductForm & 
   if (!isBlank(form.category) && !hasMinLength(form.category, 2)) errors.category = "La categorie est trop courte"
   if (!isNonNegativeNumber(form.price)) errors.price = "Le prix doit etre superieur ou egal a 0"
   if (!isNonNegativeInteger(form.stock)) errors.stock = "Le stock doit etre superieur ou egal a 0"
-  if (!isBlank(form.image_url) && !isValidUrl(form.image_url)) errors.image_url = "L'URL de l'image est invalide"
+  if (!isBlank(form.image_url) && !isValidUrl(form.image_url) && !form.image_url.startsWith("/uploads/")) errors.image_url = "L'URL de l'image est invalide"
   if (!isBlank(form.description) && !hasMinLength(form.description, 10)) errors.description = "La description doit contenir au moins 10 caracteres si elle est renseignee"
   return errors
 }
