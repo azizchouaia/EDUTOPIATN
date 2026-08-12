@@ -30,10 +30,12 @@ interface RegisterPayload {
   first_name: string
   last_name: string
   email: string
+  phone?: string
   password: string
   role: "student" | "teacher" | "parent"
   grade_code?: User["grade_code"]
   section_code?: User["section_code"]
+  student_code?: string
 }
 
 export function useRegister() {

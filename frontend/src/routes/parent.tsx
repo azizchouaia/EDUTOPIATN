@@ -38,7 +38,7 @@ export const Route = createFileRoute("/parent")({
   head: () => ({
     meta: [
       { title: "Parent Workspace - Edutopia" },
-      { name: "description", content: "Follow your child's learning progress from a parent dashboard." },
+      { name: "description", content: "Suivez la progression scolaire de votre enfant depuis le tableau de bord parent." },
     ],
   }),
   component: ParentPage,
@@ -102,11 +102,11 @@ function ParentPage() {
   }, [children]);
 
   if (!mounted || !user) {
-    return <LoadingState message="Loading parent workspace..." />;
+    return <LoadingState message="Chargement de l'espace parent..." />;
   }
 
   if (user.role !== "parent") {
-    return <LoadingState message="Redirecting..." />;
+    return <LoadingState message="Redirection..." />;
   }
 
   return (
@@ -116,41 +116,41 @@ function ParentPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-gold">
-                <UserRound className="h-3.5 w-3.5" /> Parent workspace
+                <UserRound className="h-3.5 w-3.5" /> Espace parent
               </div>
-              <h1 className="font-display text-4xl font-bold md:text-5xl">Follow your child’s learning progress</h1>
+              <h1 className="font-display text-4xl font-bold md:text-5xl">Suivez la progression scolaire de votre enfant</h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-primary-foreground/80 md:text-base">
-                This workspace is read-only. It gives the parent a focused view of enrollments, completion, and course progress for linked children.
+                Cet espace est en lecture seule. Il donne au parent une vue claire des inscriptions, complétions et progressions des enfants liés.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild className="bg-white text-bordeaux hover:bg-white/90">
-                <Link to="/profile">My profile</Link>
+                <Link to="/profile">Mon profil</Link>
               </Button>
             </div>
           </div>
         </section>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-border/70 bg-white/85"><CardContent className="p-5"><p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Linked children</p><p className="mt-3 font-display text-4xl font-bold text-bordeaux">{summary.linkedChildren}</p></CardContent></Card>
-          <Card className="border-border/70 bg-white/85"><CardContent className="p-5"><p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Courses tracked</p><p className="mt-3 font-display text-4xl font-bold text-bordeaux">{summary.totalCourses}</p></CardContent></Card>
-          <Card className="border-border/70 bg-white/85"><CardContent className="p-5"><p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Average progress</p><p className="mt-3 font-display text-4xl font-bold text-bordeaux">{summary.avgProgress}%</p></CardContent></Card>
+          <Card className="border-border/70 bg-white/85"><CardContent className="p-5"><p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Enfants liés</p><p className="mt-3 font-display text-4xl font-bold text-bordeaux">{summary.linkedChildren}</p></CardContent></Card>
+          <Card className="border-border/70 bg-white/85"><CardContent className="p-5"><p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Cours suivis</p><p className="mt-3 font-display text-4xl font-bold text-bordeaux">{summary.totalCourses}</p></CardContent></Card>
+          <Card className="border-border/70 bg-white/85"><CardContent className="p-5"><p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Progression moyenne</p><p className="mt-3 font-display text-4xl font-bold text-bordeaux">{summary.avgProgress}%</p></CardContent></Card>
         </div>
 
         {/* Children comparison bar chart */}
         {!isLoading && children.length > 0 && (
           <Card className="border-border/70 bg-white/85">
             <CardHeader className="pb-2">
-              <CardTitle className="font-display text-xl text-foreground">Progress comparison</CardTitle>
-              <CardDescription>All linked children — enrolled courses vs completed</CardDescription>
+              <CardTitle className="font-display text-xl text-foreground">Comparaison des progressions</CardTitle>
+              <CardDescription>Tous les enfants liés — cours inscrits vs complétés</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart
                   data={children.map((c) => ({
                     name: c.first_name,
-                    Enrolled: Number(c.enrolled_courses),
-                    Completed: Number(c.completed_courses),
+                    Inscrits: Number(c.enrolled_courses),
+                    Terminés: Number(c.completed_courses),
                     Progress: Number(c.avg_progress),
                   }))}
                   margin={{ top: 4, right: 8, left: -16, bottom: 0 }}
@@ -160,8 +160,8 @@ function ParentPage() {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip content={<ChartTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="Enrolled"  fill="oklch(0.78 0.13 82)" radius={[4,4,0,0]} maxBarSize={28} />
-                  <Bar dataKey="Completed" fill="oklch(0.36 0.13 18)" radius={[4,4,0,0]} maxBarSize={28} />
+                  <Bar dataKey="Inscrits"  fill="oklch(0.78 0.13 82)" radius={[4,4,0,0]} maxBarSize={28} />
+                  <Bar dataKey="Terminés" fill="oklch(0.36 0.13 18)" radius={[4,4,0,0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -169,14 +169,14 @@ function ParentPage() {
         )}
 
         {isLoading ? (
-          <LoadingState message="Loading linked children..." />
+          <LoadingState message="Chargement des enfants liés..." />
         ) : children.length === 0 ? (
           <Card className="border-border/70 bg-white/85">
             <CardContent className="grid min-h-[260px] place-items-center p-8 text-center">
               <div>
                 <UserRound className="mx-auto h-10 w-10 text-bordeaux/70" />
-                <h2 className="mt-4 font-display text-2xl font-semibold text-foreground">No child linked yet</h2>
-                <p className="mt-2 text-sm text-muted-foreground">An admin has to connect your parent account to a student account before progress becomes visible here.</p>
+                <h2 className="mt-4 font-display text-2xl font-semibold text-foreground">Aucun enfant lié pour l'instant</h2>
+                <p className="mt-2 text-sm text-muted-foreground">Un administrateur doit lier votre compte parent à un compte étudiant pour que la progression devienne visible ici.</p>
               </div>
             </CardContent>
           </Card>
@@ -198,9 +198,9 @@ function ParentPage() {
                       {formatAcademicTrack(child) ? <Badge className="border border-border bg-muted/40 text-foreground">{formatAcademicTrack(child)}</Badge> : null}
                     </div>
                     <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-                      <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Courses</div><div className="mt-1 font-semibold text-bordeaux">{child.enrolled_courses}</div></div>
-                      <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Done</div><div className="mt-1 font-semibold text-bordeaux">{child.completed_courses}</div></div>
-                      <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Progress</div><div className="mt-1 font-semibold text-bordeaux">{child.avg_progress}%</div></div>
+                      <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Cours</div><div className="mt-1 font-semibold text-bordeaux">{child.enrolled_courses}</div></div>
+                      <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Terminés</div><div className="mt-1 font-semibold text-bordeaux">{child.completed_courses}</div></div>
+                      <div className="rounded-xl border border-border/70 bg-background/70 px-3 py-3"><div className="text-xs text-muted-foreground">Progression</div><div className="mt-1 font-semibold text-bordeaux">{child.avg_progress}%</div></div>
                     </div>
                     {/* Subscription badge */}
                     <div className="mt-3 flex items-center gap-2">
@@ -208,14 +208,14 @@ function ParentPage() {
                       {child.active_plan ? (
                         <span className="text-xs text-muted-foreground">
                           <span className="capitalize font-medium text-bordeaux">{child.active_plan}</span>
-                          {" · "}until {new Date(child.active_end_date!).toLocaleDateString()}
+                          {" · "}jusqu'au {new Date(child.active_end_date!).toLocaleDateString()}
                           {" · "}
                           <span className={child.active_days_remaining! <= 7 ? "text-amber-700 font-medium" : ""}>
-                            {child.active_days_remaining} day{child.active_days_remaining !== 1 ? "s" : ""} left
+                            {child.active_days_remaining} jour{child.active_days_remaining !== 1 ? "s" : ""} restant{child.active_days_remaining !== 1 ? "s" : ""}
                           </span>
                         </span>
                       ) : (
-                        <span className="text-xs text-muted-foreground">No active subscription</span>
+                        <span className="text-xs text-muted-foreground">Aucun abonnement actif</span>
                       )}
                     </div>
                   </CardContent>
@@ -225,12 +225,12 @@ function ParentPage() {
 
             <Card className="border-border/70 bg-white/85">
               <CardHeader>
-                <CardTitle className="font-display text-2xl text-foreground">Child progress</CardTitle>
-                <CardDescription>Course-by-course progress for the selected child.</CardDescription>
+                <CardTitle className="font-display text-2xl text-foreground">Progression de l'enfant</CardTitle>
+                <CardDescription>Progression cours par cours pour l'enfant sélectionné.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {isChildProgressLoading || !childProgress ? (
-                  <div className="flex items-center gap-3 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Loading progress...</div>
+                  <div className="flex items-center gap-3 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Chargement de la progression...</div>
                 ) : (
                   <>
                     <div className="rounded-3xl border border-border/70 bg-background/70 p-5">
@@ -245,9 +245,9 @@ function ParentPage() {
                           </div>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="rounded-xl border border-border/70 bg-white px-4 py-3 text-center"><div className="text-xs text-muted-foreground">Courses</div><div className="mt-1 font-semibold text-bordeaux">{childProgress.stats.total_courses}</div></div>
-                          <div className="rounded-xl border border-border/70 bg-white px-4 py-3 text-center"><div className="text-xs text-muted-foreground">Completed</div><div className="mt-1 font-semibold text-bordeaux">{childProgress.stats.completed_courses}</div></div>
-                          <div className="rounded-xl border border-border/70 bg-white px-4 py-3 text-center"><div className="text-xs text-muted-foreground">Avg progress</div><div className="mt-1 font-semibold text-bordeaux">{childProgress.stats.avg_progress}%</div></div>
+                          <div className="rounded-xl border border-border/70 bg-white px-4 py-3 text-center"><div className="text-xs text-muted-foreground">Cours</div><div className="mt-1 font-semibold text-bordeaux">{childProgress.stats.total_courses}</div></div>
+                          <div className="rounded-xl border border-border/70 bg-white px-4 py-3 text-center"><div className="text-xs text-muted-foreground">Terminés</div><div className="mt-1 font-semibold text-bordeaux">{childProgress.stats.completed_courses}</div></div>
+                          <div className="rounded-xl border border-border/70 bg-white px-4 py-3 text-center"><div className="text-xs text-muted-foreground">Progression moy.</div><div className="mt-1 font-semibold text-bordeaux">{childProgress.stats.avg_progress}%</div></div>
                         </div>
                       </div>
                     </div>
@@ -255,29 +255,29 @@ function ParentPage() {
                     {/* Subscription detail */}
                     <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
                       <div className="flex items-center gap-2 text-sm font-semibold text-bordeaux mb-3">
-                        <CreditCard className="h-4 w-4" /> Subscription
+                        <CreditCard className="h-4 w-4" /> Abonnement
                       </div>
                       {childProgress.subscription ? (
                         (() => {
                           const sub = childProgress.subscription!;
                           const daysLeft = Math.max(0, Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / 86_400_000));
-                          const cycleLabel = sub.billing_cycle === "1_month" ? "1 month" : sub.billing_cycle === "3_months" ? "3 months" : "1 year";
+                          const cycleLabel = sub.billing_cycle === "1_month" ? "1 mois" : sub.billing_cycle === "3_months" ? "3 mois" : "1 an";
                           return (
                             <div className="grid gap-3 sm:grid-cols-4">
                               <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">Plan</div><div className="mt-1 text-sm font-semibold capitalize text-bordeaux">{sub.plan}</div></div>
-                              <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">Duration</div><div className="mt-1 text-sm font-semibold text-foreground">{cycleLabel}</div></div>
-                              <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">From → Until</div><div className="mt-1 text-xs font-semibold text-foreground">{new Date(sub.start_date).toLocaleDateString()} → {new Date(sub.end_date).toLocaleDateString()}</div></div>
-                              <div className={`rounded-xl border px-3 py-2.5 text-center ${daysLeft <= 7 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}><div className="text-xs text-muted-foreground">Days left</div><div className={`mt-1 text-sm font-bold ${daysLeft <= 7 ? "text-amber-700" : "text-emerald-700"}`}>{daysLeft}</div></div>
+                              <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">Durée</div><div className="mt-1 text-sm font-semibold text-foreground">{cycleLabel}</div></div>
+                              <div className="rounded-xl border border-border/70 bg-white px-3 py-2.5 text-center"><div className="text-xs text-muted-foreground">Du → Au</div><div className="mt-1 text-xs font-semibold text-foreground">{new Date(sub.start_date).toLocaleDateString()} → {new Date(sub.end_date).toLocaleDateString()}</div></div>
+                              <div className={`rounded-xl border px-3 py-2.5 text-center ${daysLeft <= 7 ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}><div className="text-xs text-muted-foreground">Jours restants</div><div className={`mt-1 text-sm font-bold ${daysLeft <= 7 ? "text-amber-700" : "text-emerald-700"}`}>{daysLeft}</div></div>
                             </div>
                           );
                         })()
                       ) : (
-                        <p className="text-sm text-muted-foreground">This child has no active subscription.</p>
+                        <p className="text-sm text-muted-foreground">Cet enfant n'a pas d'abonnement actif.</p>
                       )}
                     </div>
 
                     {childProgress.enrollments.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">This child is not enrolled in any course yet.</div>
+                      <div className="rounded-2xl border border-dashed border-border/80 px-4 py-10 text-center text-sm text-muted-foreground">Cet enfant n'est encore inscrit à aucun cours.</div>
                     ) : (
                       <div className="space-y-4">
                         {childProgress.enrollments.map((enrollment) => (
@@ -285,20 +285,20 @@ function ParentPage() {
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                               <div>
                                 <div className="font-medium text-foreground">{enrollment.title}</div>
-                                <div className="mt-1 text-sm text-muted-foreground">{enrollment.category ?? "Course"} · by {enrollment.first_name} {enrollment.last_name}</div>
-                                <div className="mt-2 text-xs text-muted-foreground">Enrolled {new Date(enrollment.enrolled_at).toLocaleDateString()}</div>
+                                <div className="mt-1 text-sm text-muted-foreground">{enrollment.category ?? "Cours"} · par {enrollment.first_name} {enrollment.last_name}</div>
+                                <div className="mt-2 text-xs text-muted-foreground">Inscrit le {new Date(enrollment.enrolled_at).toLocaleDateString()}</div>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 <Badge className="border border-bordeaux/20 bg-bordeaux/5 text-bordeaux"><BookOpen className="mr-1 h-3.5 w-3.5" /> {enrollment.progress}%</Badge>
                                 <Badge className={enrollment.completed ? "border border-emerald-200 bg-emerald-100 text-emerald-800" : "border border-amber-200 bg-amber-100 text-amber-800"}>
                                   {enrollment.completed ? <CircleCheckBig className="mr-1 h-3.5 w-3.5" /> : <TrendingUp className="mr-1 h-3.5 w-3.5" />}
-                                  {enrollment.completed ? "Completed" : "In progress"}
+                                  {enrollment.completed ? "Terminé" : "En cours"}
                                 </Badge>
                               </div>
                             </div>
                             <div className="mt-4">
                               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                                <span>Progress</span>
+                                <span>Progression</span>
                                 <span>{enrollment.progress}%</span>
                               </div>
                               <div className="h-2 w-full overflow-hidden rounded-full bg-muted">

@@ -65,7 +65,7 @@ export function ImageUpload({ value, onChange, label = "Image", placeholder }: I
               disabled={uploading}
               className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-white transition-colors"
             >
-              {uploading ? <><Loader2 className="inline h-3 w-3 animate-spin mr-1" />Upload…</> : "Changer"}
+              {uploading ? <><Loader2 className="inline h-3 w-3 animate-spin mr-1" />Changer…</> : "Changer"}
             </button>
             <button
               type="button"

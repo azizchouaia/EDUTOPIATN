@@ -1,4 +1,5 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+process.env.ANTHROPIC_DISABLE_TELEMETRY = '1'; // suppress SDK telemetry noise
 require('express-async-errors'); // patches Express 4 so rejected promises in async route handlers reach the error middleware
 const path = require('path');
 const express = require('express');
@@ -71,6 +72,7 @@ app.use('/api/auth/request-password-reset', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/subscriptions/activate-code', activationLimiter);
 
+app.use('/api/commercial',  require('./routes/commercial'));
 app.use('/api/auth',        authRoutes);
 app.use('/api/ai',          aiRoutes);
 app.use('/api/courses',     courseRoutes);

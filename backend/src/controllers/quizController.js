@@ -235,6 +235,114 @@ Réponds UNIQUEMENT avec un JSON valide, sans texte autour, au format :
   }
 }
 
+// ── ADMIN: extract QCM from a PDF with Khlayel ─────────────────────────────
+// (multer is applied as route middleware in courses.js — req.file already set here)
+async function adminExtractFromPdf(req, res) {
+  if (!req.file) return res.status(400).json({ message: 'Fichier PDF requis.' });
+
+  const chapterId = Number(req.body.chapter_id);
+  if (!chapterId) return res.status(400).json({ message: 'chapter_id requis.' });
+
+  // Simple query — no academic_tracks join (year_of_study column varies by schema)
+  const [[chapter]] = await db.query(
+    `SELECT ch.title,
+            COALESCE(s.name, 'Mathématiques') AS subject
+     FROM chapters ch
+     LEFT JOIN track_subjects ts ON ts.id = ch.track_subject_id
+     LEFT JOIN subjects s        ON s.id  = ts.subject_id
+     WHERE ch.id = ? LIMIT 1`,
+    [chapterId]
+  ).catch((err) => { console.error('[quiz-pdf] chapter query error:', err.message); return [[]]; });
+  if (!chapter) return res.status(422).json({ message: 'Chapitre introuvable.' });
+
+  const llm = require('../utils/llm');
+  const base64 = req.file.buffer.toString('base64');
+
+  const systemPrompt = `Tu es un professeur expert en ${chapter.subject || 'mathématiques'} pour le programme tunisien (lycée).
+Ton rôle est d'extraire ou de générer des QCM à partir du document fourni pour le chapitre "${chapter.title}".`;
+
+  const userText = `Analyse ce document PDF et extrais toutes les questions QCM présentes.
+Si le document ne contient pas de QCM explicites, génère des questions pertinentes basées sur son contenu.
+Règles strictes :
+- Chaque question a EXACTEMENT 4 options (A, B, C, D).
+- Une seule bonne réponse par question (correct_index : 0=A 1=B 2=C 3=D).
+- Ajoute une courte explication de la bonne réponse.
+- Les formules mathématiques s'écrivent en texte simple (ex: x^2, sqrt(x), sum(i=1..n)).
+Réponds UNIQUEMENT avec ce JSON, sans texte autour :
+{"questions":[{"question":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"..."}]}`;
+
+  try {
+    let raw;
+    if (llm.supportsNativeFiles()) {
+      // Anthropic — native PDF support
+      const result = await llm.chatOnce({
+        system: systemPrompt,
+        history: [],
+        userText,
+        attachments: [{ kind: 'document', mime: 'application/pdf', base64 }],
+        model: llm.modelFor('light'),
+        maxTokens: 4096,
+        temperature: 0.3,
+      });
+      raw = result.text;
+    } else {
+      // Groq — fallback: generate from chapter context (can't read PDF natively)
+      const result = await llm.chatOnce({
+        system: systemPrompt,
+        history: [],
+        userText: `${userText}\n\n[PDF fourni mais non lisible directement — génère des questions cohérentes avec le chapitre.]`,
+        model: llm.modelFor('light'),
+        maxTokens: 4096,
+        temperature: 0.3,
+      });
+      raw = result.text;
+    }
+
+    // Extract all balanced {...} blocks, pick the one with real questions
+    const text = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '');
+    const blocks = [];
+    let depth = 0, start = -1;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '{') { if (depth === 0) start = i; depth++; }
+      else if (text[i] === '}') { depth--; if (depth === 0 && start !== -1) { blocks.push(text.slice(start, i + 1)); start = -1; } }
+    }
+
+    // Try each block (last one first — model outputs example first, real JSON last)
+    let parsed = null;
+    for (const block of [...blocks].reverse()) {
+      try {
+        const candidate = JSON.parse(block.replace(/,\s*([}\]])/g, '$1'));
+        if (
+          candidate.questions &&
+          Array.isArray(candidate.questions) &&
+          candidate.questions.length > 0 &&
+          candidate.questions[0].question !== '...' // skip the template example
+        ) { parsed = candidate; break; }
+      } catch { /* try next */ }
+    }
+
+    if (!parsed) {
+      console.error('[quiz-pdf] could not find valid questions JSON. Raw:', raw.slice(0, 600));
+      throw new Error('Aucun JSON valide dans la réponse IA.');
+    }
+
+    const questions = (parsed.questions || [])
+      .filter(q => q && typeof q.question === 'string' && Array.isArray(q.options) && q.options.length === 4 && [0, 1, 2, 3].includes(Number(q.correct_index)))
+      .map(q => ({
+        question: String(q.question).trim(),
+        options: q.options.map(o => String(o).trim()),
+        correct_index: Number(q.correct_index),
+        explanation: q.explanation ? String(q.explanation).trim() : '',
+      }));
+
+    if (questions.length === 0) return res.status(502).json({ message: 'Aucune question extraite. Vérifie que le PDF contient du texte lisible.' });
+    res.json({ questions });
+  } catch (err) {
+    console.error('[quiz] PDF extraction failed:', err.message);
+    res.status(502).json({ message: 'Extraction impossible. Réessaie ou utilise la génération automatique.' });
+  }
+}
+
 module.exports = {
   getChapterQuizMeta,
   getChapterQuiz,
@@ -244,4 +352,5 @@ module.exports = {
   adminUpdateQuestion,
   adminDeleteQuestion,
   adminGenerateQuiz,
+  adminExtractFromPdf,
 };

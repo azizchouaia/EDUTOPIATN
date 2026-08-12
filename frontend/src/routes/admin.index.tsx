@@ -51,26 +51,26 @@ function AdminOverviewPage() {
   });
 
   const stats = [
-    { label: "Users", value: users.length, icon: Users },
-    { label: "Courses", value: courses.length, icon: BookOpen },
-    { label: "Events", value: events.length, icon: CalendarDays },
-    { label: "Products", value: products.length, icon: ShoppingBag },
-    { label: "Orders", value: orders.length, icon: ReceiptText },
-    { label: "Promo Codes", value: promoCodes.length, icon: TicketPercent },
-    { label: "Subscriptions", value: subscriptions.length, icon: UsersRound },
+    { label: "Utilisateurs", value: users.length, icon: Users },
+    { label: "Cours", value: courses.length, icon: BookOpen },
+    { label: "Événements", value: events.length, icon: CalendarDays },
+    { label: "Produits", value: products.length, icon: ShoppingBag },
+    { label: "Commandes", value: orders.length, icon: ReceiptText },
+    { label: "Codes promo", value: promoCodes.length, icon: TicketPercent },
+    { label: "Abonnements", value: subscriptions.length, icon: UsersRound },
     { label: "Tickets", value: reclamations.length, icon: MessageSquare },
-    { label: "Team", value: team.length, icon: UsersRound },
+    { label: "Équipe", value: team.length, icon: UsersRound },
   ];
 
   return (
     <div className="space-y-6">
       <AdminPageIntro
-        eyebrow="Overview"
-        title="Administrative dashboard"
-        description="A high-level view of the platform plus quick access into each operational module. Use the module navigator on the right to move into focused CRUD screens."
+        eyebrow="Vue d'ensemble"
+        title="Tableau de bord administratif"
+        description="Vue d'ensemble de la plateforme avec accès rapide à chaque module opérationnel. Utilisez le navigateur de modules à droite pour accéder aux écrans CRUD."
         actions={
           <Button asChild className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">
-            <Link to="/">Back to public site</Link>
+            <Link to="/">Retour au site public</Link>
           </Button>
         }
       >
@@ -94,8 +94,8 @@ function AdminOverviewPage() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card className="border-border/70 bg-white/85">
           <CardHeader>
-            <CardTitle className="font-display text-2xl text-bordeaux">Module map</CardTitle>
-            <CardDescription>Every module now has its own routed admin surface instead of one overloaded page.</CardDescription>
+            <CardTitle className="font-display text-2xl text-bordeaux">Carte des modules</CardTitle>
+            <CardDescription>Chaque module dispose désormais de sa propre interface d'administration dédiée.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
             {ADMIN_MODULES.filter((item) => item.to !== "/admin").map((item) => (
@@ -111,7 +111,7 @@ function AdminOverviewPage() {
                     </div>
                     <div>
                       <div className="font-medium text-foreground">{item.label}</div>
-                      <div className="text-xs text-muted-foreground">Open CRUD workspace</div>
+                      <div className="text-xs text-muted-foreground">Ouvrir l'espace CRUD</div>
                     </div>
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-bordeaux" />
@@ -123,42 +123,42 @@ function AdminOverviewPage() {
 
         <Card className="border-border/70 bg-white/85">
           <CardHeader>
-            <CardTitle className="font-display text-2xl text-bordeaux">Operational watchlist</CardTitle>
-            <CardDescription>Immediate items that usually need attention.</CardDescription>
+            <CardTitle className="font-display text-2xl text-bordeaux">Tableau de surveillance</CardTitle>
+            <CardDescription>Éléments nécessitant une attention immédiate.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div className="flex items-center justify-between rounded-2xl border border-border/70 p-4">
               <div>
-                <div className="font-medium text-foreground">Pending orders</div>
-                <div className="text-muted-foreground">Orders waiting for admin action</div>
+                <div className="font-medium text-foreground">Commandes en attente</div>
+                <div className="text-muted-foreground">Commandes en attente d'action admin</div>
               </div>
               <Badge className="bg-bordeaux/10 text-bordeaux">{orders.filter((order) => order.status === "pending").length}</Badge>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-border/70 p-4">
               <div>
-                <div className="font-medium text-foreground">Open reclamations</div>
-                <div className="text-muted-foreground">Tickets not yet resolved</div>
+                <div className="font-medium text-foreground">Réclamations ouvertes</div>
+                <div className="text-muted-foreground">Tickets non résolus</div>
               </div>
               <Badge className="bg-bordeaux/10 text-bordeaux">{reclamations.filter((ticket) => ticket.status !== "resolved").length}</Badge>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-border/70 p-4">
               <div>
-                <div className="font-medium text-foreground">Inactive products</div>
-                <div className="text-muted-foreground">Catalog items hidden from the marketplace</div>
+                <div className="font-medium text-foreground">Produits inactifs</div>
+                <div className="text-muted-foreground">Articles masqués de la marketplace</div>
               </div>
               <Badge className="bg-gold/15 text-bordeaux">{products.filter((product) => product.is_active === 0).length}</Badge>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-border/70 p-4">
               <div>
-                <div className="font-medium text-foreground">Cancelled events</div>
-                <div className="text-muted-foreground">Still visible in history for admin review</div>
+                <div className="font-medium text-foreground">Événements annulés</div>
+                <div className="text-muted-foreground">Toujours visibles dans l'historique pour révision admin</div>
               </div>
               <Badge className="bg-gold/15 text-bordeaux">{events.filter((event) => event.is_cancelled === 1).length}</Badge>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-border/70 p-4">
               <div>
-                <div className="font-medium text-foreground">Inactive team entries</div>
-                <div className="text-muted-foreground">Hidden from the public team page</div>
+                <div className="font-medium text-foreground">Membres d'équipe inactifs</div>
+                <div className="text-muted-foreground">Masqués de la page équipe publique</div>
               </div>
               <Badge className="bg-gold/15 text-bordeaux">{team.filter((member) => member.is_active === 0).length}</Badge>
             </div>

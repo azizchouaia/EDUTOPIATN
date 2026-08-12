@@ -1,12 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { GraduationCap, Mail, MapPin, Phone, Facebook, Instagram, Youtube, Twitter } from "lucide-react";
+import { GraduationCap, Mail, MapPin, Phone, Facebook, Instagram, Youtube } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 
 const socialLinks = [
-  { href: "https://facebook.com", icon: Facebook, label: "Facebook" },
-  { href: "https://instagram.com", icon: Instagram, label: "Instagram" },
-  { href: "https://youtube.com", icon: Youtube, label: "YouTube" },
-  { href: "https://twitter.com", icon: Twitter, label: "Twitter / X" },
+  { href: "https://www.facebook.com/profile.php?id=61551853753304", icon: Facebook, label: "Facebook" },
+  { href: "https://www.instagram.com/edutopia.tn", icon: Instagram, label: "Instagram" },
+  { href: "https://www.youtube.com/@edutopiatn", icon: Youtube, label: "YouTube" },
 ];
 
 const exploreNavDefs = [

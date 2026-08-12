@@ -79,10 +79,10 @@ function ReclamationsPage() {
       <section className="bg-gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-20 text-center">
           <span className="text-xs uppercase tracking-[0.3em] text-gold font-semibold">Support</span>
-          <h1 className="font-display text-5xl md:text-6xl font-bold mt-3">Reclamations</h1>
+          <h1 className="font-display text-5xl md:text-6xl font-bold mt-3">Réclamations</h1>
           <div className="gold-divider mx-auto my-6" />
           <p className="max-w-xl mx-auto text-primary-foreground/80">
-            We're here to help. Submit your reclamation and our team will respond within 24 hours.
+            Nous sommes là pour vous aider. Soumettez votre réclamation et notre équipe répondra dans les 24 heures.
           </p>
         </div>
       </section>
@@ -94,31 +94,31 @@ function ReclamationsPage() {
           className="lg:col-span-3 rounded-2xl border border-border bg-card p-8"
         >
           <h2 className="font-display text-2xl font-bold text-foreground flex items-center gap-2">
-            <MessageSquare className="h-6 w-6 text-bordeaux" /> New reclamation
+            <MessageSquare className="h-6 w-6 text-bordeaux" /> Nouvelle réclamation
           </h2>
           <div className="gold-divider mt-3 mb-6" />
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="subject">Subject</Label>
+              <Label htmlFor="subject">Sujet</Label>
               <Input
                 id="subject"
-                placeholder="Brief title..."
-                {...register("subject", { required: "Subject is required" })}
+                placeholder="Titre court..."
+                {...register("subject", { required: "Le sujet est obligatoire" })}
               />
               {errors.subject && <p className="text-xs text-destructive">{errors.subject.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="category">Catégorie</Label>
               <select
                 id="category"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold"
                 {...register("category")}
               >
-                <option value="course">Course</option>
-                <option value="payment">Payment</option>
-                <option value="technical">Technical</option>
-                <option value="other">Other</option>
+                <option value="course">Cours</option>
+                <option value="payment">Paiement</option>
+                <option value="technical">Technique</option>
+                <option value="other">Autre</option>
               </select>
             </div>
           </div>
@@ -127,9 +127,9 @@ function ReclamationsPage() {
             <Label htmlFor="message">Message</Label>
             <Textarea
               id="message"
-              placeholder="Describe your issue in detail..."
+              placeholder="Décrivez votre problème en détail..."
               rows={6}
-              {...register("message", { required: "Message is required" })}
+              {...register("message", { required: "Le message est obligatoire" })}
             />
             {errors.message && <p className="text-xs text-destructive">{errors.message.message}</p>}
           </div>
@@ -139,19 +139,19 @@ function ReclamationsPage() {
             disabled={submitMutation.isPending}
             className="mt-6 w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11"
           >
-            {submitMutation.isPending ? "Submitting…" : "Submit reclamation"}
+            {submitMutation.isPending ? "Envoi en cours…" : "Soumettre la réclamation"}
           </Button>
         </form>
 
         {/* Tickets list */}
         <div className="lg:col-span-2 space-y-4">
-          <h2 className="font-display text-2xl font-bold text-foreground">My tickets</h2>
+          <h2 className="font-display text-2xl font-bold text-foreground">Mes tickets</h2>
           <div className="gold-divider" />
 
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading tickets…</p>
+            <p className="text-sm text-muted-foreground">Chargement des tickets…</p>
           ) : tickets.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tickets yet. Submit your first reclamation.</p>
+            <p className="text-sm text-muted-foreground">Aucun ticket pour l'instant. Soumettez votre première réclamation.</p>
           ) : (
             tickets.map((t) => {
               const cfg = statusConfig[t.status] ?? statusConfig.open;

@@ -26,7 +26,7 @@ export const Route = createFileRoute("/profile")({
   },
   head: () => ({
     meta: [
-      { title: "My Profile — Edutopia" },
+      { title: "Mon profil — Edutopia" },
       { name: "description", content: "View and update your Edutopia profile." },
     ],
   }),
@@ -268,7 +268,7 @@ function ProfilePage() {
           </button>
           <div>
             <h1 className="font-display text-3xl md:text-4xl font-bold">
-              {mounted && user ? `${user.first_name} ${user.last_name}` : "My Profile"}
+              {mounted && user ? `${user.first_name} ${user.last_name}` : "Mon profil"}
             </h1>
             <p className="text-primary-foreground/70 mt-1">{mounted ? user?.email : ""}</p>
             <div className="flex gap-2 mt-2 flex-wrap">
@@ -329,6 +329,30 @@ function ProfilePage() {
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground">Membre depuis</span>
                 <span className="font-medium capitalize">{memberSince}</span>
+              </div>
+            )}
+            {mounted && user?.user_code && (
+              <div className="mt-1">
+                <p className="text-xs text-muted-foreground mb-1.5">
+                  {user.role === "student" ? "Mon code élève" : user.role === "parent" ? "Mon code parent" : "Mon identifiant"}
+                </p>
+                <button
+                  type="button"
+                  title="Copier le code"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-gold/40 bg-gold/5 px-3 py-2 font-mono text-sm font-bold tracking-widest text-bordeaux hover:bg-gold/15 transition-colors cursor-pointer"
+                  onClick={() => {
+                    navigator.clipboard.writeText(user.user_code ?? "").then(() => {
+                      import("sonner").then(({ toast }) => toast.success("Code copié !"));
+                    });
+                  }}
+                >
+                  {user.user_code}
+                </button>
+                {user.role === "student" && (
+                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                    Partagez ce code avec un parent pour qu'il puisse suivre votre progression.
+                  </p>
+                )}
               </div>
             )}
             {isStudent && formatAcademicTrack(user) && (
@@ -508,7 +532,7 @@ function ProfilePage() {
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-bordeaux/10 text-bordeaux">
                 <CreditCard className="h-5 w-5" />
               </span>
-              Subscription
+              Abonnement
             </h2>
             <Separator className="my-5" />
 
@@ -517,13 +541,13 @@ function ProfilePage() {
                 const sub = accessStatus.active_subscription;
                 const endDate = new Date(sub.end_date);
                 const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - Date.now()) / 86_400_000));
-                const cycleLabel = sub.billing_cycle === "1_month" ? "1 month" : sub.billing_cycle === "3_months" ? "3 months" : "1 year";
+                const cycleLabel = sub.billing_cycle === "1_month" ? "1 mois" : sub.billing_cycle === "3_months" ? "3 mois" : "1 an";
                 const isAlmostExpired = daysLeft <= 7;
                 return (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center gap-3">
                       <Badge className="border-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 capitalize text-sm px-3 py-1">
-                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Active
+                        <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Actif
                       </Badge>
                       <Badge className="border border-gold/30 bg-gold/10 text-bordeaux capitalize text-sm px-3 py-1">
                         {sub.plan}
@@ -532,23 +556,23 @@ function ProfilePage() {
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="rounded-xl border border-border/70 bg-background/70 px-4 py-3">
-                        <div className="text-xs text-muted-foreground">Valid from</div>
+                        <div className="text-xs text-muted-foreground">Valable du</div>
                         <div className="mt-1 font-semibold text-foreground">{new Date(sub.start_date).toLocaleDateString()}</div>
                       </div>
                       <div className="rounded-xl border border-border/70 bg-background/70 px-4 py-3">
-                        <div className="text-xs text-muted-foreground">Valid until</div>
+                        <div className="text-xs text-muted-foreground">Valable jusqu'au</div>
                         <div className="mt-1 font-semibold text-foreground">{new Date(sub.end_date).toLocaleDateString()}</div>
                       </div>
                       <div className={`rounded-xl border px-4 py-3 ${isAlmostExpired ? "border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30" : "border-border/70 bg-background/70"}`}>
-                        <div className="text-xs text-muted-foreground">Days remaining</div>
+                        <div className="text-xs text-muted-foreground">Jours restants</div>
                         <div className={`mt-1 font-semibold ${isAlmostExpired ? "text-amber-700 dark:text-amber-400" : "text-bordeaux"}`}>
-                          {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+                          {daysLeft} jour{daysLeft !== 1 ? "s" : ""}
                         </div>
                       </div>
                     </div>
                     {isAlmostExpired && (
                       <p className="text-sm text-amber-700 dark:text-amber-400">
-                        Your subscription expires soon. <Link to="/subscriptions" className="font-medium underline underline-offset-2">Renew now</Link>
+                        Votre abonnement expire bientôt. <Link to="/subscriptions" className="font-medium underline underline-offset-2">Renouveler maintenant</Link>
                       </p>
                     )}
                   </div>
@@ -558,9 +582,9 @@ function ProfilePage() {
               (() => {
                 const pending = accessStatus.pending_subscription;
                 const statusMessages: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-                  pending_receipt: { label: "Waiting for receipt upload", icon: <Clock className="mr-1.5 h-3.5 w-3.5" />, color: "border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300" },
-                  pending_approval: { label: "Receipt under admin review", icon: <AlertCircle className="mr-1.5 h-3.5 w-3.5" />, color: "border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300" },
-                  pending_code: { label: "Enter activation code", icon: <CalendarClock className="mr-1.5 h-3.5 w-3.5" />, color: "border-bordeaux/20 bg-bordeaux/5 text-bordeaux" },
+                  pending_receipt: { label: "Reçu en attente d'upload", icon: <Clock className="mr-1.5 h-3.5 w-3.5" />, color: "border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300" },
+                  pending_approval: { label: "Reçu en cours de révision", icon: <AlertCircle className="mr-1.5 h-3.5 w-3.5" />, color: "border-blue-200 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300" },
+                  pending_code: { label: "Entrer le code d'activation", icon: <CalendarClock className="mr-1.5 h-3.5 w-3.5" />, color: "border-bordeaux/20 bg-bordeaux/5 text-bordeaux" },
                 };
                 const info = statusMessages[pending.status] ?? statusMessages.pending_receipt;
                 return (
@@ -569,17 +593,17 @@ function ProfilePage() {
                       {info.icon} {info.label}
                     </Badge>
                     <p className="text-sm text-muted-foreground">
-                      You have a <strong className="capitalize">{pending.plan}</strong> plan subscription in progress.{" "}
-                      <Link to="/subscriptions" className="font-medium text-bordeaux underline-offset-2 hover:underline">Go to subscriptions</Link> to complete activation.
+                      Vous avez un abonnement <strong className="capitalize">{pending.plan}</strong> en cours.{" "}
+                      <Link to="/subscriptions" className="font-medium text-bordeaux underline-offset-2 hover:underline">Accéder aux abonnements</Link> pour finaliser l'activation.
                     </p>
                   </div>
                 );
               })()
             ) : (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">You don't have an active subscription yet. Subscribe to unlock courses and events.</p>
+                <p className="text-sm text-muted-foreground">Vous n'avez pas encore d'abonnement actif. Abonnez-vous pour débloquer les cours et événements.</p>
                 <Button asChild className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">
-                  <Link to="/subscriptions">View subscription plans</Link>
+                  <Link to="/subscriptions">Voir les formules d'abonnement</Link>
                 </Button>
               </div>
             )}

@@ -147,7 +147,7 @@ function AdminModulePage() {
     default:
       return (
         <Card className="border-border/70 bg-white/85">
-          <CardContent className="p-8 text-center text-muted-foreground">Unknown module.</CardContent>
+          <CardContent className="p-8 text-center text-muted-foreground">Module inconnu.</CardContent>
         </Card>
       );
   }
@@ -308,29 +308,29 @@ function UsersModule() {
 
   return (
     <ModuleScaffold
-      eyebrow="Users"
-      title="Users module"
-      description="Create accounts, edit details, manage roles, deactivate access, and remove accounts."
+      eyebrow="Utilisateurs"
+      title="Module utilisateurs"
+      description="Créez des comptes, modifiez les détails, gérez les rôles, désactivez l'accès et supprimez des comptes."
       form={
         <Card className="border-border/70 bg-white/85">
           <CardHeader>
-            <CardTitle className="font-display text-2xl text-bordeaux">{editingId ? "Edit user" : "Create user"}</CardTitle>
-            <CardDescription>{editingId ? "Update account details or reset the password." : "Admin-side account creation."}</CardDescription>
+            <CardTitle className="font-display text-2xl text-bordeaux">{editingId ? "Modifier l'utilisateur" : "Créer un utilisateur"}</CardTitle>
+            <CardDescription>{editingId ? "Modifiez les détails du compte ou réinitialisez le mot de passe." : "Création de compte depuis l'interface admin."}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <FormInput label="First name" value={form.first_name} error={errors.first_name} onChange={(value) => setForm((prev) => ({ ...prev, first_name: value }))} />
-              <FormInput label="Last name" value={form.last_name} error={errors.last_name} onChange={(value) => setForm((prev) => ({ ...prev, last_name: value }))} />
+              <FormInput label="Prénom" value={form.first_name} error={errors.first_name} onChange={(value) => setForm((prev) => ({ ...prev, first_name: value }))} />
+              <FormInput label="Nom" value={form.last_name} error={errors.last_name} onChange={(value) => setForm((prev) => ({ ...prev, last_name: value }))} />
             </div>
             <FormInput label="Email" value={form.email} error={errors.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} />
-            <FormInput label={editingId ? "New password" : "Password"} type="password" value={form.password} error={errors.password} onChange={(value) => setForm((prev) => ({ ...prev, password: value }))} placeholder={editingId ? "Leave blank to keep current password" : undefined} />
-            <FormSelect label="Role" value={form.role} options={["admin", "teacher", "student", "parent"]} error={errors.role} onChange={(value) => setForm((prev) => ({ ...prev, role: value as User["role"], grade_code: value === "student" ? prev.grade_code : "", section_code: "" }))} />
+            <FormInput label={editingId ? "Nouveau mot de passe" : "Mot de passe"} type="password" value={form.password} error={errors.password} onChange={(value) => setForm((prev) => ({ ...prev, password: value }))} placeholder={editingId ? "Laisser vide pour conserver le mot de passe actuel" : undefined} />
+            <FormSelect label="Rôle" value={form.role} options={["admin", "teacher", "student", "parent", "commercial"]} error={errors.role} onChange={(value) => setForm((prev) => ({ ...prev, role: value as User["role"], grade_code: value === "student" ? prev.grade_code : "", section_code: "" }))} />
             {form.role === "student" ? (
               <>
                 <div className="space-y-1.5">
-                  <Label>Class</Label>
+                  <Label>Classe</Label>
                   <select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.grade_code ? "border-destructive" : "border-input"}`} value={form.grade_code} onChange={(e) => setForm((prev) => ({ ...prev, grade_code: e.target.value as GradeCode | "", section_code: needsSection(e.target.value) ? prev.section_code : "" }))}>
-                    <option value="">Select class</option>
+                    <option value="">Sélectionner une classe</option>
                     {GRADE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                   {errors.grade_code ? <p className="text-xs text-destructive">{errors.grade_code}</p> : null}
@@ -339,7 +339,7 @@ function UsersModule() {
                   <div className="space-y-1.5">
                     <Label>Section</Label>
                     <select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.section_code ? "border-destructive" : "border-input"}`} value={form.section_code} onChange={(e) => setForm((prev) => ({ ...prev, section_code: e.target.value as SectionCode | "" }))}>
-                      <option value="">Select section</option>
+                      <option value="">Sélectionner une section</option>
                       {SECTION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
                     {errors.section_code ? <p className="text-xs text-destructive">{errors.section_code}</p> : null}
@@ -349,9 +349,9 @@ function UsersModule() {
             ) : null}
             <div className="flex flex-wrap gap-3">
               <Button type="button" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">
-                {createMutation.isPending || updateMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {editingId ? "Save changes" : "Create user"}</>}
+                {createMutation.isPending || updateMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement…</> : <><Plus className="mr-2 h-4 w-4" /> {editingId ? "Enregistrer" : "Créer l'utilisateur"}</>}
               </Button>
-              {editingId ? <Button type="button" variant="outline" onClick={() => resetForm(setForm, setEditingId, INITIAL_USER_FORM)}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}
+              {editingId ? <Button type="button" variant="outline" onClick={() => resetForm(setForm, setEditingId, INITIAL_USER_FORM)}><X className="mr-2 h-4 w-4" /> Annuler</Button> : null}
             </div>
           </CardContent>
         </Card>
@@ -362,12 +362,12 @@ function UsersModule() {
           <AdminListControls
             search={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Search by name, email, or class"
+            searchPlaceholder="Rechercher par nom, e-mail ou classe"
             filters={[
-              { label: "Role", value: roleFilter, onChange: setRoleFilter, options: [{ value: "all", label: "All roles" }, { value: "admin", label: "Admin" }, { value: "teacher", label: "Teacher" }, { value: "student", label: "Student" }, { value: "parent", label: "Parent" }] },
-              { label: "Status", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "All statuses" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] },
+              { label: "Rôle", value: roleFilter, onChange: setRoleFilter, options: [{ value: "all", label: "Tous les rôles" }, { value: "admin", label: "Admin" }, { value: "teacher", label: "Enseignant" }, { value: "student", label: "Étudiant" }, { value: "parent", label: "Parent" }, { value: "commercial", label: "Commercial" }] },
+              { label: "Statut", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "Tous les statuts" }, { value: "active", label: "Actif" }, { value: "inactive", label: "Inactif" }] },
             ]}
-            sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "name-asc", label: "Name A-Z" }, { value: "name-desc", label: "Name Z-A" }, { value: "email-asc", label: "Email A-Z" }, { value: "email-desc", label: "Email Z-A" }, { value: "recent", label: "Newest first" }] }}
+            sort={{ label: "Trier", value: sortBy, onChange: setSortBy, options: [{ value: "name-asc", label: "Nom A-Z" }, { value: "name-desc", label: "Nom Z-A" }, { value: "email-asc", label: "Email A-Z" }, { value: "email-desc", label: "Email Z-A" }, { value: "recent", label: "Plus récent" }] }}
           />
           <BulkActionBar
             count={bulkSelection.count}
@@ -376,7 +376,7 @@ function UsersModule() {
             onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
           />
           <AdminTable
-            headers={["Name", "Email", "Role", "Track", "Status", "Actions"]}
+            headers={["Nom", "Email", "Rôle", "Filière", "Statut", "Actions"]}
             items={filteredUsers}
             getId={(user) => user.id}
             selectedIds={bulkSelection.selectedIds}
@@ -393,10 +393,11 @@ function UsersModule() {
                 <option value="teacher">teacher</option>
                 <option value="student">student</option>
                 <option value="parent">parent</option>
+                <option value="commercial">commercial</option>
               </select>,
               formatAcademicTrack(user) ?? "—",
               <Button key={`status-${user.id}`} size="sm" variant="outline" className={user.is_active ? "border-emerald-700 text-emerald-700" : "border-bordeaux text-bordeaux"} onClick={() => updateMutation.mutate({ id: user.id, data: { is_active: user.is_active ? 0 : 1 } })}>
-                {user.is_active ? "Active" : "Inactive"}
+                {user.is_active ? "Actif" : "Inactif"}
               </Button>,
               <div key={`actions-${user.id}`} className="flex flex-wrap gap-2">
                 <EditButton onClick={() => {
@@ -410,26 +411,26 @@ function UsersModule() {
           <div className="mt-6 grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
             <Card className="border-border/70 bg-background/70">
               <CardHeader>
-                <CardTitle className="text-lg text-bordeaux">Assign parent to child</CardTitle>
-                <CardDescription>Create the secure read-only link before the parent can see progress.</CardDescription>
+                <CardTitle className="text-lg text-bordeaux">Associer un parent à un enfant</CardTitle>
+                <CardDescription>Créez le lien sécurisé en lecture seule pour que le parent puisse voir la progression.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>Parent <span className="text-muted-foreground font-normal text-xs">— type to search</span></Label>
+                  <Label>Parent <span className="text-muted-foreground font-normal text-xs">— tapez pour rechercher</span></Label>
                   <SearchableUserSelect
                     users={parentUsers}
                     value={linkForm.parent_id}
                     onChange={(id) => setLinkForm((prev) => ({ ...prev, parent_id: id }))}
-                    placeholder="Search parent by name or email…"
+                    placeholder="Rechercher un parent par nom ou e-mail…"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Student <span className="text-muted-foreground font-normal text-xs">— type to search</span></Label>
+                  <Label>Élève <span className="text-muted-foreground font-normal text-xs">— tapez pour rechercher</span></Label>
                   <SearchableUserSelect
                     users={studentUsers}
                     value={linkForm.student_id}
                     onChange={(id) => setLinkForm((prev) => ({ ...prev, student_id: id }))}
-                    placeholder="Search student by name or email…"
+                    placeholder="Rechercher un élève par nom ou e-mail…"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -442,24 +443,24 @@ function UsersModule() {
                   </select>
                 </div>
                 <Button type="button" className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90" disabled={!linkForm.parent_id || !linkForm.student_id || createParentLinkMutation.isPending} onClick={() => createParentLinkMutation.mutate()}>
-                  {createParentLinkMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> Create link</>}
+                  {createParentLinkMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement…</> : <><Plus className="mr-2 h-4 w-4" /> Créer le lien</>}
                 </Button>
-                {parentUsers.length === 0 || studentUsers.length === 0 ? <p className="text-xs text-muted-foreground">Create both a parent account and a student account before linking them.</p> : null}
+                {parentUsers.length === 0 || studentUsers.length === 0 ? <p className="text-xs text-muted-foreground">Créez d'abord un compte parent et un compte étudiant avant de les lier.</p> : null}
               </CardContent>
             </Card>
             <Card className="border-border/70 bg-background/70">
               <CardHeader>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <CardTitle className="text-lg text-bordeaux">Parent-child links</CardTitle>
-                    <CardDescription>These links authorize the parent dashboard.</CardDescription>
+                    <CardTitle className="text-lg text-bordeaux">Liens parent-enfant</CardTitle>
+                    <CardDescription>Ces liens autorisent l'accès au tableau de bord parent.</CardDescription>
                   </div>
                   <div className="relative sm:w-64">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                     <Input
                       value={linkSearch}
                       onChange={(e) => setLinkSearch(e.target.value)}
-                      placeholder="Search parent or student…"
+                      placeholder="Rechercher un parent ou un élève…"
                       className="pl-9 h-9 text-sm"
                     />
                     {linkSearch && (
@@ -467,7 +468,7 @@ function UsersModule() {
                         type="button"
                         onClick={() => setLinkSearch("")}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label="Clear search"
+                        aria-label="Effacer la recherche"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -476,16 +477,16 @@ function UsersModule() {
                 </div>
                 {linkSearch && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {filteredLinks.length} result{filteredLinks.length !== 1 ? "s" : ""} for "{linkSearch}"
+                    {filteredLinks.length} résultat{filteredLinks.length !== 1 ? "s" : ""} pour "{linkSearch}"
                   </p>
                 )}
               </CardHeader>
               <CardContent>
                 {parentLinks.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">No parent-child links yet.</div>
+                  <div className="rounded-2xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">Aucun lien parent-enfant pour l'instant.</div>
                 ) : filteredLinks.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">
-                    No links match "{linkSearch}".
+                    Aucun lien ne correspond à « {linkSearch} ».
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -502,10 +503,10 @@ function UsersModule() {
                           </span>
                         </div>
                         <div className="mt-3 rounded-xl border border-border/70 bg-muted/30 px-3 py-3 text-sm">
-                          <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-0.5">Student</div>
+                          <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-0.5">Élève</div>
                           <div className="font-semibold text-foreground">{link.student_first_name} {link.student_last_name}</div>
                           <div className="text-xs text-muted-foreground">{link.student_email}</div>
-                          <div className="mt-1.5 text-xs text-muted-foreground">{formatAcademicTrack({ grade_code: link.grade_code, section_code: link.section_code, year_of_study: null }) ?? "No academic track"}</div>
+                          <div className="mt-1.5 text-xs text-muted-foreground">{formatAcademicTrack({ grade_code: link.grade_code, section_code: link.section_code, year_of_study: null }) ?? "Aucune filière"}</div>
                         </div>
                         <div className="mt-4 flex justify-end">
                           <DeleteButton onDelete={() => deleteParentLinkMutation.mutate(link.id)} />
@@ -580,9 +581,9 @@ function EventsModule() {
 
   return (
     <ModuleScaffold
-      eyebrow="Events"
-      title="Events module"
-      description="Create, edit, cancel, restore, and remove events."
+      eyebrow="Événements"
+      title="Module événements"
+      description="Créez, modifiez, annulez, restaurez et supprimez des événements."
       form={<SimpleEventForm form={form} setForm={setForm} errors={errors} isPending={createMutation.isPending || updateMutation.isPending} onSubmit={() => {
         const nextErrors = validateAdminEventForm(form)
         setErrors(nextErrors)
@@ -591,7 +592,7 @@ function EventsModule() {
           return
         }
         editingId ? updateMutation.mutate({ id: editingId, data: eventPayload(form) }) : createMutation.mutate()
-      }} heading={editingId ? "Edit event" : "Create event"} submitLabel={editingId ? "Save changes" : "Create event"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_EVENT_FORM) : undefined} />}
+      }} heading={editingId ? "Modifier l'événement" : "Créer un événement"} submitLabel={editingId ? "Enregistrer" : "Créer l'événement"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_EVENT_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
         <div className="space-y-3">
@@ -699,9 +700,9 @@ function ProductsModule() {
 
   return (
     <ModuleScaffold
-      eyebrow="Products"
-      title="Products module"
-      description="Manage the product catalog, edit product details, control visibility, and remove items."
+      eyebrow="Produits"
+      title="Module produits"
+      description="Gérez le catalogue, modifiez les détails des produits, contrôlez la visibilité et supprimez des articles."
       form={<SimpleProductForm form={form} setForm={setForm} errors={errors} isPending={createMutation.isPending || updateMutation.isPending} onSubmit={() => {
         const nextErrors = validateProductForm(form)
         setErrors(nextErrors)
@@ -710,7 +711,7 @@ function ProductsModule() {
           return
         }
         editingId ? updateMutation.mutate({ id: editingId, data: productPayload(form) }) : createMutation.mutate()
-      }} heading={editingId ? "Edit product" : "Create product"} submitLabel={editingId ? "Save changes" : "Create product"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_PRODUCT_FORM) : undefined} />}
+      }} heading={editingId ? "Modifier le produit" : "Créer un produit"} submitLabel={editingId ? "Enregistrer" : "Créer le produit"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_PRODUCT_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
         <div className="space-y-3">
@@ -729,18 +730,18 @@ function ProductsModule() {
                     <SelectCheckbox checked={bulkSelection.selectedIds.has(product.id)} onChange={() => bulkSelection.toggle(product.id)} ariaLabel={`Select product ${product.id}`} />
                     <div>
                       <div className="font-display text-xl font-semibold text-foreground">{product.name}</div>
-                      <div className="text-sm text-muted-foreground">{product.category ?? "No category"} · stock {product.stock}</div>
+                      <div className="text-sm text-muted-foreground">{product.category ?? "Aucune catégorie"} · stock {product.stock}</div>
                     </div>
                   </div>
-                  <Badge className={product.is_active ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{product.is_active ? "Active" : "Inactive"}</Badge>
+                  <Badge className={product.is_active ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{product.is_active ? "Actif" : "Inactif"}</Badge>
                 </div>
-                <div className="mt-3 font-display text-2xl text-bordeaux">EUR {Number(product.price).toFixed(2)}</div>
+                <div className="mt-3 font-display text-2xl text-bordeaux">DT{Number(product.price).toFixed(2)}</div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <EditButton onClick={() => {
                     setEditingId(product.id);
                     setForm({ name: product.name, description: product.description ?? "", price: String(product.price ?? 0), category: product.category ?? "", tag: product.tag, stock: String(product.stock ?? 0), image_url: product.image_url ?? "" });
                   }} />
-                  <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateMutation.mutate({ id: product.id, data: { is_active: product.is_active ? 0 : 1 } })}>{product.is_active ? "Deactivate" : "Activate"}</Button>
+                  <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateMutation.mutate({ id: product.id, data: { is_active: product.is_active ? 0 : 1 } })}>{product.is_active ? "Désactiver" : "Activer"}</Button>
                   <DeleteButton onDelete={() => deleteMutation.mutate(product.id)} />
                 </div>
               </CardContent>
@@ -794,27 +795,27 @@ function OrdersModule() {
   );
 
   return (
-    <ModuleScaffold eyebrow="Orders" title="Orders module" description="Review marketplace orders and update their payment lifecycle.">
+    <ModuleScaffold eyebrow="Commandes" title="Module commandes" description="Examinez les commandes et mettez à jour leur état de paiement.">
       {isLoading ? <LoadingCard /> : (
         <>
           <AdminListControls
             search={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Search by customer, email, promo, or order ID"
+            searchPlaceholder="Rechercher par client, e-mail, promo ou ID commande"
             filters={[
-              { label: "Status", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "All statuses" }, { value: "pending", label: "Pending" }, { value: "paid", label: "Paid" }, { value: "cancelled", label: "Cancelled" }, { value: "refunded", label: "Refunded" }] },
+              { label: "Statut", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "Tous les statuts" }, { value: "pending", label: "En attente" }, { value: "paid", label: "Payé" }, { value: "cancelled", label: "Annulé" }, { value: "refunded", label: "Remboursé" }] },
             ]}
-            sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "recent", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "total-desc", label: "Highest total" }, { value: "total-asc", label: "Lowest total" }] }}
+            sort={{ label: "Trier", value: sortBy, onChange: setSortBy, options: [{ value: "recent", label: "Plus récent" }, { value: "oldest", label: "Plus ancien" }, { value: "total-desc", label: "Total le plus élevé" }, { value: "total-asc", label: "Total le plus bas" }] }}
           />
           <AdminTable
-            headers={["Customer", "Promo", "Total", "Created", "Status"]}
+            headers={["Client", "Promo", "Total", "Date", "Statut"]}
             rows={filteredOrders.map((order) => [
               <div key={`customer-${order.id}`}>
                 <div className="font-medium text-foreground">{order.first_name} {order.last_name}</div>
                 <div className="text-xs text-muted-foreground">{order.email}</div>
               </div>,
-              order.promo_code ?? "No promo",
-              `EUR ${Number(order.total_amount).toFixed(2)}`,
+              order.promo_code ?? "Aucun promo",
+              `DT${Number(order.total_amount).toFixed(2)}`,
               new Date(order.created_at).toLocaleString(),
               <select key={`status-${order.id}`} className="rounded-md border border-input bg-background px-2 py-1 text-sm" value={order.status} onChange={(e) => updateMutation.mutate({ id: order.id, status: e.target.value as MarketOrder["status"] })}>
                 <option value="pending">pending</option>
@@ -909,9 +910,9 @@ function PromoCodesModule() {
 
   return (
     <ModuleScaffold
-      eyebrow="Promo Codes"
-      title="Promo-code module"
-      description="Create discounts, attach them to specific products, edit them, deactivate them, or remove them."
+      eyebrow="Codes promo"
+      title="Module codes promo"
+      description="Créez des remises, attachez-les à des produits, modifiez-les, désactivez-les ou supprimez-les."
       form={<SimplePromoForm form={form} setForm={setForm} products={products} errors={errors} isPending={createMutation.isPending || updateMutation.isPending} onSubmit={() => {
         const nextErrors = validatePromoForm(form)
         setErrors(nextErrors)
@@ -920,18 +921,18 @@ function PromoCodesModule() {
           return
         }
         editingId ? updateMutation.mutate({ id: editingId, data: promoPayload(form) }) : createMutation.mutate()
-      }} heading={editingId ? "Edit promo code" : "Create promo code"} submitLabel={editingId ? "Save changes" : "Create promo code"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_PROMO_FORM) : undefined} />}
+      }} heading={editingId ? "Modifier le code promo" : "Créer un code promo"} submitLabel={editingId ? "Enregistrer" : "Créer le code promo"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_PROMO_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
         <>
           <AdminListControls
             search={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Search by promo code or product"
+            searchPlaceholder="Rechercher par code promo ou produit"
             filters={[
-              { label: "Status", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "All statuses" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] },
+              { label: "Statut", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "Tous les statuts" }, { value: "active", label: "Actif" }, { value: "inactive", label: "Inactif" }] },
             ]}
-            sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "code-asc", label: "Code A-Z" }, { value: "code-desc", label: "Code Z-A" }, { value: "discount-desc", label: "Highest discount" }, { value: "discount-asc", label: "Lowest discount" }, { value: "usage-desc", label: "Most used" }, { value: "usage-asc", label: "Least used" }] }}
+            sort={{ label: "Trier", value: sortBy, onChange: setSortBy, options: [{ value: "code-asc", label: "Code A-Z" }, { value: "code-desc", label: "Code Z-A" }, { value: "discount-desc", label: "Remise la plus élevée" }, { value: "discount-asc", label: "Remise la plus basse" }, { value: "usage-desc", label: "Plus utilisé" }, { value: "usage-asc", label: "Moins utilisé" }] }}
           />
           <BulkActionBar
             count={bulkSelection.count}
@@ -940,7 +941,7 @@ function PromoCodesModule() {
             onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
           />
           <AdminTable
-            headers={["Code", "Discount", "Product", "Usage", "Status", "Actions"]}
+            headers={["Code", "Remise", "Produit", "Utilisation", "Statut", "Actions"]}
             items={filteredPromoCodes}
             getId={(promo) => promo.id}
             selectedIds={bulkSelection.selectedIds}
@@ -949,9 +950,9 @@ function PromoCodesModule() {
             rows={filteredPromoCodes.map((promo) => [
               <div key={`code-${promo.id}`} className="font-medium text-foreground">{promo.code}</div>,
               `${promo.discount_percent}%`,
-              promo.product_name ?? "All products",
+              promo.product_name ?? "Tous les produits",
               `${promo.used_count}/${promo.max_uses ?? "∞"}`,
-              <Button key={`status-${promo.id}`} size="sm" variant="outline" className={promo.is_active ? "border-emerald-700 text-emerald-700" : "border-bordeaux text-bordeaux"} onClick={() => updateMutation.mutate({ id: promo.id, data: { is_active: promo.is_active ? 0 : 1 } })}>{promo.is_active ? "Active" : "Inactive"}</Button>,
+              <Button key={`status-${promo.id}`} size="sm" variant="outline" className={promo.is_active ? "border-emerald-700 text-emerald-700" : "border-bordeaux text-bordeaux"} onClick={() => updateMutation.mutate({ id: promo.id, data: { is_active: promo.is_active ? 0 : 1 } })}>{promo.is_active ? "Actif" : "Inactif"}</Button>,
               <div key={`actions-${promo.id}`} className="flex flex-wrap gap-2">
                 <EditButton onClick={() => {
                   setEditingId(promo.id);
@@ -1072,22 +1073,22 @@ function SubscriptionsModule() {
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="font-display text-xl">
-            Receipt — {receiptPreview?.name ?? "Document"}
+            Reçu — {receiptPreview?.name ?? "Document"}
           </DialogTitle>
         </DialogHeader>
         {receiptPreview && (
           <div className="space-y-4">
             {receiptPreview.isPdf ? (
               <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-muted/40 py-10 text-center">
-                <p className="text-sm text-muted-foreground">PDF receipt — open in a new tab to view</p>
+                <p className="text-sm text-muted-foreground">Reçu PDF — ouvrir dans un nouvel onglet pour visualiser</p>
                 <Button asChild variant="outline" className="border-bordeaux text-bordeaux">
-                  <a href={receiptPreview.url} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Open PDF</a>
+                  <a href={receiptPreview.url} target="_blank" rel="noreferrer"><ExternalLink className="mr-2 h-4 w-4" /> Ouvrir le PDF</a>
                 </Button>
               </div>
             ) : (
               <img
                 src={receiptPreview.url}
-                alt="Bank transfer receipt"
+                alt="Reçu de virement bancaire"
                 className="w-full rounded-xl border border-border object-contain max-h-[60vh]"
               />
             )}
@@ -1098,7 +1099,7 @@ function SubscriptionsModule() {
                 onClick={() => { approveMutation.mutate(receiptPreview.subscriptionId); setReceiptPreview(null); }}
                 disabled={approveMutation.isPending}
               >
-                {approveMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approving…</> : <><CheckCircle2 className="mr-2 h-4 w-4" /> Approve bank transfer</>}
+                {approveMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approbation…</> : <><CheckCircle2 className="mr-2 h-4 w-4" /> Approuver le virement</>}
               </Button>
             )}
           </div>
@@ -1107,9 +1108,9 @@ function SubscriptionsModule() {
     </Dialog>
 
     <ModuleScaffold
-      eyebrow="Subscriptions"
-      title="Subscriptions module"
-      description="Create subscriptions linked to users, edit any plan window or state, and delete them if needed."
+      eyebrow="Abonnements"
+      title="Module abonnements"
+      description="Créez des abonnements liés aux utilisateurs, modifiez les plans et supprimez-les si nécessaire."
       form={<SimpleSubscriptionForm form={form} setForm={setForm} users={users} errors={errors} isPending={createMutation.isPending || updateMutation.isPending} onSubmit={() => {
         const nextErrors = validateSubscriptionForm(form)
         setErrors(nextErrors)
@@ -1118,19 +1119,19 @@ function SubscriptionsModule() {
           return
         }
         editingId ? updateMutation.mutate({ id: editingId, data: subscriptionPayload(form) }) : createMutation.mutate()
-      }} heading={editingId ? "Edit subscription" : "Create subscription"} submitLabel={editingId ? "Save changes" : "Create subscription"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_SUBSCRIPTION_FORM) : undefined} />}
+      }} heading={editingId ? "Modifier l'abonnement" : "Créer un abonnement"} submitLabel={editingId ? "Enregistrer" : "Créer l'abonnement"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_SUBSCRIPTION_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
         <>
           <AdminListControls
             search={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Search by user, email, plan, or payment method"
+            searchPlaceholder="Rechercher par utilisateur, e-mail, plan ou mode de paiement"
             filters={[
-              { label: "Plan", value: planFilter, onChange: setPlanFilter, options: [{ value: "all", label: "All plans" }, { value: "basic", label: "Basic" }, { value: "premium", label: "Premium" }, { value: "enterprise", label: "Enterprise" }] },
-              { label: "Status", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "All statuses" }, { value: "pending_receipt", label: "Pending receipt" }, { value: "pending_approval", label: "Pending approval" }, { value: "pending_code", label: "Pending code" }, { value: "active", label: "Active" }, { value: "expired", label: "Expired" }, { value: "cancelled", label: "Cancelled" }] },
+              { label: "Plan", value: planFilter, onChange: setPlanFilter, options: [{ value: "all", label: "Tous les plans" }, { value: "basic", label: "Basic" }, { value: "premium", label: "Premium" }, { value: "enterprise", label: "Enterprise" }] },
+              { label: "Statut", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "Tous les statuts" }, { value: "pending_receipt", label: "Reçu en attente" }, { value: "pending_approval", label: "Approbation en attente" }, { value: "pending_code", label: "Code en attente" }, { value: "active", label: "Actif" }, { value: "expired", label: "Expiré" }, { value: "cancelled", label: "Annulé" }] },
             ]}
-            sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "end-desc", label: "Ends latest" }, { value: "end-asc", label: "Ends soonest" }, { value: "start-desc", label: "Starts latest" }, { value: "start-asc", label: "Starts earliest" }, { value: "name-asc", label: "Name A-Z" }, { value: "name-desc", label: "Name Z-A" }] }}
+            sort={{ label: "Trier", value: sortBy, onChange: setSortBy, options: [{ value: "end-desc", label: "Fin la plus tardive" }, { value: "end-asc", label: "Fin la plus proche" }, { value: "start-desc", label: "Début le plus tardif" }, { value: "start-asc", label: "Début le plus tôt" }, { value: "name-asc", label: "Nom A-Z" }, { value: "name-desc", label: "Nom Z-A" }] }}
           />
           <BulkActionBar
             count={bulkSelection.count}
@@ -1139,7 +1140,7 @@ function SubscriptionsModule() {
             onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
           />
           <AdminTable
-            headers={["User", "Plan", "Payment", "Dates", "Status", "Actions"]}
+            headers={["Utilisateur", "Plan", "Paiement", "Dates", "Statut", "Actions"]}
             items={filteredSubscriptions}
             getId={(subscription) => subscription.id}
             selectedIds={bulkSelection.selectedIds}
@@ -1155,10 +1156,10 @@ function SubscriptionsModule() {
                 <div className="font-medium text-foreground">{subscription.payment_method?.replace("_", " ") ?? "online"}</div>
                 {subscription.bank_receipt_path ? (
                   <a href={assetUrl(subscription.bank_receipt_path) ?? undefined} target="_blank" rel="noreferrer" className="text-xs text-bordeaux hover:underline">
-                    {subscription.bank_receipt_original_name ?? "View receipt"}
+                    {subscription.bank_receipt_original_name ?? "Voir le reçu"}
                   </a>
                 ) : (
-                  <div className="text-xs text-muted-foreground">No receipt</div>
+                  <div className="text-xs text-muted-foreground">Aucun reçu</div>
                 )}
               </div>,
               `${subscription.start_date} → ${subscription.end_date}`,
@@ -1183,17 +1184,17 @@ function SubscriptionsModule() {
                       setReceiptPreview({ url, name, subscriptionId: subscription.id, isPdf });
                     }}
                   >
-                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> View receipt
+                    <ExternalLink className="mr-1 h-3.5 w-3.5" /> Voir le reçu
                   </Button>
                 ) : null}
                 {subscription.payment_method === "bank_transfer" && subscription.status === "pending_approval" ? (
                   <Button size="sm" variant="outline" className="border-emerald-600 text-emerald-700" onClick={() => approveMutation.mutate(subscription.id)} disabled={approveMutation.isPending}>
-                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Approve
+                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Approuver
                   </Button>
                 ) : null}
                 {subscription.status === "pending_code" ? (
                   <Button size="sm" variant="outline" className="border-amber-600 text-amber-700" onClick={() => regenerateMutation.mutate(subscription.id)}>
-                    Regenerate code
+                    Régénérer le code
                   </Button>
                 ) : null}
                 <EditButton onClick={() => {
@@ -1249,18 +1250,18 @@ function ReclamationsModule() {
   );
 
   return (
-    <ModuleScaffold eyebrow="Reclamations" title="Support module" description="Review tickets, update status, and delete invalid entries.">
+    <ModuleScaffold eyebrow="Réclamations" title="Module support" description="Examinez les tickets, mettez à jour les statuts et supprimez les entrées invalides.">
       {isLoading ? <LoadingCard /> : (
         <>
           <AdminListControls
             search={searchTerm}
             onSearchChange={setSearchTerm}
-            searchPlaceholder="Search by user, subject, message, or category"
+            searchPlaceholder="Rechercher par utilisateur, sujet, message ou catégorie"
             filters={[
-              { label: "Status", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "All statuses" }, { value: "open", label: "Open" }, { value: "in_progress", label: "In progress" }, { value: "resolved", label: "Resolved" }] },
-              { label: "Category", value: categoryFilter, onChange: setCategoryFilter, options: [{ value: "all", label: "All categories" }, ...categoryOptions.map((category) => ({ value: category, label: category }))] },
+              { label: "Statut", value: statusFilter, onChange: setStatusFilter, options: [{ value: "all", label: "Tous les statuts" }, { value: "open", label: "Ouvert" }, { value: "in_progress", label: "En cours" }, { value: "resolved", label: "Résolu" }] },
+              { label: "Catégorie", value: categoryFilter, onChange: setCategoryFilter, options: [{ value: "all", label: "Toutes les catégories" }, ...categoryOptions.map((category) => ({ value: category, label: category }))] },
             ]}
-            sort={{ label: "Sort", value: sortBy, onChange: setSortBy, options: [{ value: "recent", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "subject-asc", label: "Subject A-Z" }, { value: "subject-desc", label: "Subject Z-A" }] }}
+            sort={{ label: "Trier", value: sortBy, onChange: setSortBy, options: [{ value: "recent", label: "Plus récent" }, { value: "oldest", label: "Plus ancien" }, { value: "subject-asc", label: "Sujet A-Z" }, { value: "subject-desc", label: "Sujet Z-A" }] }}
           />
           <BulkActionBar
             count={bulkSelection.count}
@@ -1269,7 +1270,7 @@ function ReclamationsModule() {
             onDelete={() => { if (confirmBulkDelete(bulkSelection.count)) bulkDeleteMutation.mutate(Array.from(bulkSelection.selectedIds)); }}
           />
           <AdminTable
-            headers={["User", "Subject", "Category", "Status", "Actions"]}
+            headers={["Utilisateur", "Sujet", "Catégorie", "Statut", "Actions"]}
             items={filteredReclamations}
             getId={(ticket) => ticket.id}
             selectedIds={bulkSelection.selectedIds}
@@ -1349,9 +1350,9 @@ function TeamModule() {
 
   return (
     <ModuleScaffold
-      eyebrow="Team"
-      title="Team module"
-      description="The public team page is no longer static. Create, edit, hide, show, and remove team members here."
+      eyebrow="Équipe"
+      title="Module équipe"
+      description="La page équipe publique n'est plus statique. Créez, modifiez, masquez, affichez et supprimez des membres."
       form={<SimpleTeamForm form={form} setForm={setForm} errors={errors} isPending={createMutation.isPending || updateMutation.isPending} onSubmit={() => {
         const nextErrors = validateTeamForm(form)
         setErrors(nextErrors)
@@ -1360,7 +1361,7 @@ function TeamModule() {
           return
         }
         editingId ? updateMutation.mutate({ id: editingId, data: teamPayload(form) }) : createMutation.mutate()
-      }} heading={editingId ? "Edit team member" : "Create team member"} submitLabel={editingId ? "Save changes" : "Create member"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_TEAM_FORM) : undefined} />}
+      }} heading={editingId ? "Modifier le membre" : "Créer un membre"} submitLabel={editingId ? "Enregistrer" : "Créer le membre"} onCancel={editingId ? () => resetForm(setForm, setEditingId, INITIAL_TEAM_FORM) : undefined} />}
     >
       {isLoading ? <LoadingCard /> : (
         <div className="space-y-3">
@@ -1382,7 +1383,7 @@ function TeamModule() {
                       <div className="text-sm text-muted-foreground">{member.role}</div>
                     </div>
                   </div>
-                  <Badge className={member.is_active ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{member.is_active ? "Visible" : "Hidden"}</Badge>
+                  <Badge className={member.is_active ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>{member.is_active ? "Visible" : "Masqué"}</Badge>
                 </div>
                 {member.bio ? <p className="mt-3 text-sm text-muted-foreground">{member.bio}</p> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -1390,7 +1391,7 @@ function TeamModule() {
                     setEditingId(member.id);
                     setForm({ name: member.name, role: member.role, bio: member.bio ?? "", initials: member.initials ?? "", gradient_from: member.gradient_from, gradient_to: member.gradient_to, linkedin_url: member.linkedin_url ?? "", github_url: member.github_url ?? "", email: member.email ?? "", display_order: String(member.display_order ?? 0), is_active: Boolean(member.is_active) });
                   }} />
-                  <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateMutation.mutate({ id: member.id, data: { is_active: member.is_active ? 0 : 1 } })}>{member.is_active ? "Hide" : "Show"}</Button>
+                  <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateMutation.mutate({ id: member.id, data: { is_active: member.is_active ? 0 : 1 } })}>{member.is_active ? "Masquer" : "Afficher"}</Button>
                   <DeleteButton onDelete={() => deleteMutation.mutate(member.id)} />
                 </div>
               </CardContent>
@@ -1411,8 +1412,8 @@ function ModuleScaffold({ eyebrow, title, description, form, children }: { eyebr
         {form ?? null}
         <Card className="border-border/70 bg-white/85">
           <CardHeader>
-            <CardTitle className="font-display text-2xl text-bordeaux">Records</CardTitle>
-            <CardDescription>Live data from the backend.</CardDescription>
+            <CardTitle className="font-display text-2xl text-bordeaux">Données</CardTitle>
+            <CardDescription>Données en temps réel depuis le backend.</CardDescription>
           </CardHeader>
           <CardContent>{children}</CardContent>
         </Card>
@@ -1519,7 +1520,7 @@ function SearchableUserSelect({
             type="button"
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             onMouseDown={(e) => { e.preventDefault(); onChange(""); setQuery(""); inputRef.current?.focus(); }}
-            aria-label="Clear"
+            aria-label="Effacer"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -1543,7 +1544,7 @@ function SearchableUserSelect({
       {open && !selected && (
         <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-popover shadow-lg overflow-hidden">
           {filtered.length === 0 ? (
-            <div className="px-3 py-5 text-sm text-center text-muted-foreground">No match found.</div>
+            <div className="px-3 py-5 text-sm text-center text-muted-foreground">Aucun résultat.</div>
           ) : (
             <div className="max-h-52 overflow-y-auto">
               {filtered.map((u) => (
@@ -1577,8 +1578,8 @@ function SearchableUserSelect({
 
 function DeleteButton({ onDelete }: { onDelete: () => void }) {
   return (
-    <Button size="sm" variant="outline" className="border-destructive text-destructive" onClick={() => { if (window.confirm("Delete this item?")) onDelete(); }}>
-      <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+    <Button size="sm" variant="outline" className="border-destructive text-destructive" onClick={() => { if (window.confirm("Supprimer cet élément ?")) onDelete(); }}>
+      <Trash2 className="mr-1 h-3.5 w-3.5" /> Supprimer
     </Button>
   );
 }
@@ -1586,7 +1587,7 @@ function DeleteButton({ onDelete }: { onDelete: () => void }) {
 function EditButton({ onClick }: { onClick: () => void }) {
   return (
     <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={onClick}>
-      <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+      <Pencil className="mr-1 h-3.5 w-3.5" /> Modifier
     </Button>
   );
 }
@@ -1594,7 +1595,7 @@ function EditButton({ onClick }: { onClick: () => void }) {
 function LoadingCard() {
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+      <Loader2 className="h-4 w-4 animate-spin" /> Chargement...
     </div>
   );
 }
@@ -1618,7 +1619,7 @@ function AdminTable<T>({ headers, rows, items, getId, selectedIds, onToggle, onT
           <tr className="border-b border-border text-muted-foreground">
             {selectable ? (
               <th className="w-10 px-3 py-3">
-                <SelectCheckbox checked={allChecked} onChange={() => onToggleAll!()} ariaLabel="Select all" />
+                <SelectCheckbox checked={allChecked} onChange={() => onToggleAll!()} ariaLabel="Tout sélectionner" />
               </th>
             ) : null}
             {headers.map((header) => (
@@ -1630,7 +1631,7 @@ function AdminTable<T>({ headers, rows, items, getId, selectedIds, onToggle, onT
           {rows.length === 0 ? (
             <tr>
               <td colSpan={headers.length + (selectable ? 1 : 0)} className="px-3 py-8 text-center text-muted-foreground">
-                No records yet.
+                Aucun enregistrement.
               </td>
             </tr>
           ) : null}
@@ -1640,7 +1641,7 @@ function AdminTable<T>({ headers, rows, items, getId, selectedIds, onToggle, onT
               <tr key={rowIndex} className={`border-b border-border/70 align-top ${selectable && id !== undefined && selectedIds!.has(id) ? "bg-destructive/5" : ""}`}>
                 {selectable ? (
                   <td className="px-3 py-3">
-                    <SelectCheckbox checked={selectedIds!.has(id!)} onChange={() => onToggle!(id!)} ariaLabel={`Select row ${id}`} />
+                    <SelectCheckbox checked={selectedIds!.has(id!)} onChange={() => onToggle!(id!)} ariaLabel={`Sélectionner la ligne ${id}`} />
                   </td>
                 ) : null}
                 {row.map((cell, cellIndex) => (
@@ -1660,15 +1661,15 @@ function SimpleCourseForm({ form, setForm, isPending, onSubmit, heading, submitL
     <Card className="border-border/70 bg-white/85">
       <CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader>
       <CardContent className="grid gap-4">
-        <FormInput label="Title" value={form.title} error={errors.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} />
-        <FormInput label="Category" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
-        <FormInput label="Price" type="number" value={form.price} error={errors.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
-        <FormInput label="Duration hours" type="number" value={form.duration_hours} error={errors.duration_hours} onChange={(value) => setForm((prev) => ({ ...prev, duration_hours: value }))} />
-        <FormInput label="Lessons count" type="number" value={form.lessons_count} error={errors.lessons_count} onChange={(value) => setForm((prev) => ({ ...prev, lessons_count: value }))} />
+        <FormInput label="Titre" value={form.title} error={errors.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} />
+        <FormInput label="Catégorie" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
+        <FormInput label="Prix" type="number" value={form.price} error={errors.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
+        <FormInput label="Durée (heures)" type="number" value={form.duration_hours} error={errors.duration_hours} onChange={(value) => setForm((prev) => ({ ...prev, duration_hours: value }))} />
+        <FormInput label="Nombre de leçons" type="number" value={form.lessons_count} error={errors.lessons_count} onChange={(value) => setForm((prev) => ({ ...prev, lessons_count: value }))} />
         <ImageUpload label="Image de couverture" value={form.cover_image} onChange={(url) => setForm((prev) => ({ ...prev, cover_image: url }))} />
         <FormTextarea label="Description" value={form.description} error={errors.description} onChange={(value) => setForm((prev) => ({ ...prev, description: value }))} />
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
+          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement…</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
           {onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}
         </div>
       </CardContent>
@@ -1685,7 +1686,7 @@ function SimpleEventForm({ form, setForm, isPending, onSubmit, heading, submitLa
       <CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader>
       <CardContent className="grid gap-4">
         <FormInput label="Titre" value={form.title} error={errors.title} onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} />
-        <FormInput label="Categorie" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
+        <FormInput label="Catégorie" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
 
         {/* Type */}
         <div className="space-y-1.5">
@@ -1703,7 +1704,7 @@ function SimpleEventForm({ form, setForm, isPending, onSubmit, heading, submitLa
 
         {/* Access mode */}
         <div className="space-y-1.5">
-          <Label>Acces</Label>
+          <Label>Accès</Label>
           <div className="flex gap-2">
             <button
               type="button"
@@ -1765,15 +1766,15 @@ function SimpleProductForm({ form, setForm, isPending, onSubmit, heading, submit
     <Card className="border-border/70 bg-white/85">
       <CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader>
       <CardContent className="grid gap-4">
-        <FormInput label="Name" value={form.name} error={errors.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
-        <FormInput label="Category" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
-        <FormInput label="Price" type="number" value={form.price} error={errors.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
+        <FormInput label="Nom" value={form.name} error={errors.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} />
+        <FormInput label="Catégorie" value={form.category} error={errors.category} onChange={(value) => setForm((prev) => ({ ...prev, category: value }))} />
+        <FormInput label="Prix" type="number" value={form.price} error={errors.price} onChange={(value) => setForm((prev) => ({ ...prev, price: value }))} />
         <FormInput label="Stock" type="number" value={form.stock} error={errors.stock} onChange={(value) => setForm((prev) => ({ ...prev, stock: value }))} />
         <FormSelect label="Tag" value={form.tag} options={["none", "bestseller", "new", "limited", "promo"]} error={errors.tag} onChange={(value) => setForm((prev) => ({ ...prev, tag: value as Product["tag"] }))} />
         <ImageUpload label="Image du produit" value={form.image_url} onChange={(url) => setForm((prev) => ({ ...prev, image_url: url }))} />
         <FormTextarea label="Description" value={form.description} error={errors.description} onChange={(value) => setForm((prev) => ({ ...prev, description: value }))} />
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
+          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement…</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
           {onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}
         </div>
       </CardContent>
@@ -1783,7 +1784,7 @@ function SimpleProductForm({ form, setForm, isPending, onSubmit, heading, submit
 
 function SimplePromoForm({ form, setForm, products, isPending, onSubmit, heading, submitLabel, onCancel, errors = {} }: { form: PromoForm; setForm: Dispatch<SetStateAction<PromoForm>>; products: Product[]; isPending: boolean; onSubmit: () => void; heading: string; submitLabel: string; onCancel?: () => void; errors?: FormErrors<keyof PromoForm & string> }) {
   return (
-    <Card className="border-border/70 bg-white/85"><CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader><CardContent className="grid gap-4"><FormInput label="Code" value={form.code} error={errors.code} onChange={(value) => setForm((prev) => ({ ...prev, code: value.toUpperCase() }))} /><FormInput label="Discount percent" type="number" value={form.discount_percent} error={errors.discount_percent} onChange={(value) => setForm((prev) => ({ ...prev, discount_percent: value }))} /><div className="space-y-1.5"><Label>Related product</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.product_id ? "border-destructive" : "border-input"}`} value={form.product_id} onChange={(e) => setForm((prev) => ({ ...prev, product_id: e.target.value }))}><option value="">All products</option>{products.map((product) => <option key={product.id} value={String(product.id)}>{product.name}</option>)}</select>{errors.product_id ? <p className="text-xs text-destructive">{errors.product_id}</p> : null}</div><FormInput label="Max uses" type="number" value={form.max_uses} error={errors.max_uses} onChange={(value) => setForm((prev) => ({ ...prev, max_uses: value }))} /><FormInput label="Expires at" type="datetime-local" value={form.expires_at} error={errors.expires_at} onChange={(value) => setForm((prev) => ({ ...prev, expires_at: value }))} /><div className="space-y-1.5"><Label>Status</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.is_active ? "border-destructive" : "border-input"}`} value={form.is_active ? "1" : "0"} onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "1" }))}><option value="1">active</option><option value="0">inactive</option></select>{errors.is_active ? <p className="text-xs text-destructive">{errors.is_active}</p> : null}</div><div className="flex flex-wrap gap-3"><Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>{onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}</div></CardContent></Card>
+    <Card className="border-border/70 bg-white/85"><CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader><CardContent className="grid gap-4"><FormInput label="Code" value={form.code} error={errors.code} onChange={(value) => setForm((prev) => ({ ...prev, code: value.toUpperCase() }))} /><FormInput label="Remise (%)" type="number" value={form.discount_percent} error={errors.discount_percent} onChange={(value) => setForm((prev) => ({ ...prev, discount_percent: value }))} /><div className="space-y-1.5"><Label>Produit associé</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.product_id ? "border-destructive" : "border-input"}`} value={form.product_id} onChange={(e) => setForm((prev) => ({ ...prev, product_id: e.target.value }))}><option value="">Tous les produits</option>{products.map((product) => <option key={product.id} value={String(product.id)}>{product.name}</option>)}</select>{errors.product_id ? <p className="text-xs text-destructive">{errors.product_id}</p> : null}</div><FormInput label="Utilisations max" type="number" value={form.max_uses} error={errors.max_uses} onChange={(value) => setForm((prev) => ({ ...prev, max_uses: value }))} /><FormInput label="Expire le" type="datetime-local" value={form.expires_at} error={errors.expires_at} onChange={(value) => setForm((prev) => ({ ...prev, expires_at: value }))} /><div className="space-y-1.5"><Label>Statut</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.is_active ? "border-destructive" : "border-input"}`} value={form.is_active ? "1" : "0"} onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "1" }))}><option value="1">active</option><option value="0">inactive</option></select>{errors.is_active ? <p className="text-xs text-destructive">{errors.is_active}</p> : null}</div><div className="flex flex-wrap gap-3"><Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement…</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>{onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Annuler</Button> : null}</div></CardContent></Card>
   );
 }
 
@@ -1793,27 +1794,27 @@ function SimpleSubscriptionForm({ form, setForm, users, isPending, onSubmit, hea
       <CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader>
       <CardContent className="grid gap-4">
         <div className="space-y-1.5">
-          <Label>User</Label>
+          <Label>Utilisateur</Label>
           <select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.user_id ? "border-destructive" : "border-input"}`} value={form.user_id} onChange={(e) => setForm((prev) => ({ ...prev, user_id: e.target.value }))}>
-            <option value="">Select user</option>
+            <option value="">Sélectionner un utilisateur</option>
             {users.map((user) => <option key={user.id} value={String(user.id)}>{user.first_name} {user.last_name} · {user.email}</option>)}
           </select>
           {errors.user_id ? <p className="text-xs text-destructive">{errors.user_id}</p> : null}
         </div>
         <FormSelect label="Plan" value={form.plan} options={["basic", "premium", "enterprise"]} error={errors.plan} onChange={(value) => setForm((prev) => ({ ...prev, plan: value as Subscription["plan"] }))} />
         <div className="space-y-1.5">
-          <Label>Billing cycle</Label>
+          <Label>Cycle de facturation</Label>
           <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.billing_cycle} onChange={(e) => setForm((prev) => ({ ...prev, billing_cycle: e.target.value as SubscriptionForm["billing_cycle"] }))}>
-            <option value="1_month">1 month</option>
-            <option value="3_months">3 months</option>
-            <option value="1_year">1 year</option>
+            <option value="1_month">1 mois</option>
+            <option value="3_months">3 mois</option>
+            <option value="1_year">1 an</option>
           </select>
         </div>
         <FormSelect label="Status" value={form.status} options={["pending_receipt", "pending_approval", "pending_code", "active", "expired", "cancelled"]} error={errors.status} onChange={(value) => setForm((prev) => ({ ...prev, status: value as Subscription["status"] }))} />
-        <FormInput label="Start date" type="date" value={form.start_date} error={errors.start_date} onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))} />
-        <FormInput label="End date" type="date" value={form.end_date} error={errors.end_date} onChange={(value) => setForm((prev) => ({ ...prev, end_date: value }))} />
+        <FormInput label="Date de début" type="date" value={form.start_date} error={errors.start_date} onChange={(value) => setForm((prev) => ({ ...prev, start_date: value }))} />
+        <FormInput label="Date de fin" type="date" value={form.end_date} error={errors.end_date} onChange={(value) => setForm((prev) => ({ ...prev, end_date: value }))} />
         <div className="flex flex-wrap gap-3">
-          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
+          <Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement…</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>
           {onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}
         </div>
       </CardContent>
@@ -1823,7 +1824,7 @@ function SimpleSubscriptionForm({ form, setForm, users, isPending, onSubmit, hea
 
 function SimpleTeamForm({ form, setForm, isPending, onSubmit, heading, submitLabel, onCancel, errors = {} }: { form: TeamForm; setForm: Dispatch<SetStateAction<TeamForm>>; isPending: boolean; onSubmit: () => void; heading: string; submitLabel: string; onCancel?: () => void; errors?: FormErrors<keyof TeamForm & string> }) {
   return (
-    <Card className="border-border/70 bg-white/85"><CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader><CardContent className="grid gap-4"><FormInput label="Name" value={form.name} error={errors.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} /><FormInput label="Role" value={form.role} error={errors.role} onChange={(value) => setForm((prev) => ({ ...prev, role: value }))} /><FormInput label="Initials" value={form.initials} error={errors.initials} onChange={(value) => setForm((prev) => ({ ...prev, initials: value }))} /><FormInput label="Email" value={form.email} error={errors.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} /><FormInput label="LinkedIn URL" value={form.linkedin_url} error={errors.linkedin_url} onChange={(value) => setForm((prev) => ({ ...prev, linkedin_url: value }))} /><FormInput label="GitHub URL" value={form.github_url} error={errors.github_url} onChange={(value) => setForm((prev) => ({ ...prev, github_url: value }))} /><FormInput label="Display order" type="number" value={form.display_order} error={errors.display_order} onChange={(value) => setForm((prev) => ({ ...prev, display_order: value }))} /><div className="grid gap-4 md:grid-cols-2"><FormInput label="Gradient from" value={form.gradient_from} error={errors.gradient_from} onChange={(value) => setForm((prev) => ({ ...prev, gradient_from: value }))} /><FormInput label="Gradient to" value={form.gradient_to} error={errors.gradient_to} onChange={(value) => setForm((prev) => ({ ...prev, gradient_to: value }))} /></div><div className="space-y-1.5"><Label>Status</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.is_active ? "border-destructive" : "border-input"}`} value={form.is_active ? "1" : "0"} onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "1" }))}><option value="1">visible</option><option value="0">hidden</option></select>{errors.is_active ? <p className="text-xs text-destructive">{errors.is_active}</p> : null}</div><FormTextarea label="Bio" value={form.bio} error={errors.bio} onChange={(value) => setForm((prev) => ({ ...prev, bio: value }))} /><div className="flex flex-wrap gap-3"><Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>{onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Cancel</Button> : null}</div></CardContent></Card>
+    <Card className="border-border/70 bg-white/85"><CardHeader><CardTitle className="font-display text-2xl text-bordeaux">{heading}</CardTitle></CardHeader><CardContent className="grid gap-4"><FormInput label="Nom" value={form.name} error={errors.name} onChange={(value) => setForm((prev) => ({ ...prev, name: value }))} /><FormInput label="Role" value={form.role} error={errors.role} onChange={(value) => setForm((prev) => ({ ...prev, role: value }))} /><FormInput label="Initiales" value={form.initials} error={errors.initials} onChange={(value) => setForm((prev) => ({ ...prev, initials: value }))} /><FormInput label="Email" value={form.email} error={errors.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} /><FormInput label="URL LinkedIn" value={form.linkedin_url} error={errors.linkedin_url} onChange={(value) => setForm((prev) => ({ ...prev, linkedin_url: value }))} /><FormInput label="URL GitHub" value={form.github_url} error={errors.github_url} onChange={(value) => setForm((prev) => ({ ...prev, github_url: value }))} /><FormInput label="Ordre d'affichage" type="number" value={form.display_order} error={errors.display_order} onChange={(value) => setForm((prev) => ({ ...prev, display_order: value }))} /><div className="grid gap-4 md:grid-cols-2"><FormInput label="Dégradé de" value={form.gradient_from} error={errors.gradient_from} onChange={(value) => setForm((prev) => ({ ...prev, gradient_from: value }))} /><FormInput label="Dégradé vers" value={form.gradient_to} error={errors.gradient_to} onChange={(value) => setForm((prev) => ({ ...prev, gradient_to: value }))} /></div><div className="space-y-1.5"><Label>Statut</Label><select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${errors.is_active ? "border-destructive" : "border-input"}`} value={form.is_active ? "1" : "0"} onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "1" }))}><option value="1">visible</option><option value="0">hidden</option></select>{errors.is_active ? <p className="text-xs text-destructive">{errors.is_active}</p> : null}</div><FormTextarea label="Biographie" value={form.bio} error={errors.bio} onChange={(value) => setForm((prev) => ({ ...prev, bio: value }))} /><div className="flex flex-wrap gap-3"><Button type="button" onClick={onSubmit} disabled={isPending} className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">{isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement…</> : <><Plus className="mr-2 h-4 w-4" /> {submitLabel}</>}</Button>{onCancel ? <Button type="button" variant="outline" onClick={onCancel}><X className="mr-2 h-4 w-4" /> Annuler</Button> : null}</div></CardContent></Card>
   );
 }
 

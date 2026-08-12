@@ -7,18 +7,18 @@ import { useMe } from "@/hooks/useAuth";
 import { isAuthenticated } from "@/lib/auth";
 
 export const ADMIN_MODULES = [
-  { to: "/admin", label: "Overview", icon: Shield, exact: true },
-  { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/courses", label: "Courses", icon: BookOpen },
-  { to: "/admin/events", label: "Events", icon: CalendarDays },
-  { to: "/admin/products", label: "Products", icon: ShoppingBag },
-  { to: "/admin/orders", label: "Orders", icon: ReceiptText },
-  { to: "/admin/promo-codes", label: "Promo Codes", icon: TicketPercent },
-  { to: "/admin/subscriptions", label: "Subscriptions", icon: UsersRound },
-  { to: "/admin/reclamations", label: "Reclamations", icon: MessageSquare },
-  { to: "/admin/team", label: "Team", icon: UsersRound },
+  { to: "/admin", label: "Vue d'ensemble", icon: Shield, exact: true },
+  { to: "/admin/users", label: "Utilisateurs", icon: Users },
+  { to: "/admin/courses", label: "Cours", icon: BookOpen },
+  { to: "/admin/events", label: "Événements", icon: CalendarDays },
+  { to: "/admin/products", label: "Produits", icon: ShoppingBag },
+  { to: "/admin/orders", label: "Commandes", icon: ReceiptText },
+  { to: "/admin/promo-codes", label: "Codes promo", icon: TicketPercent },
+  { to: "/admin/subscriptions", label: "Abonnements", icon: UsersRound },
+  { to: "/admin/reclamations", label: "Réclamations", icon: MessageSquare },
+  { to: "/admin/team", label: "Équipe", icon: UsersRound },
   { to: "/admin/quizzes", label: "Quiz", icon: ClipboardCheck },
-  { to: "/admin/khlayel", label: "Khlayel AI", icon: BrainCircuit },
+  { to: "/admin/khlayel", label: "Khlayel IA", icon: BrainCircuit },
 ] as const;
 
 export const Route = createFileRoute("/admin")({
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/admin")({
   },
   head: () => ({
     meta: [
-      { title: "Admin Workspace - Edutopia" },
-      { name: "description", content: "A dedicated workspace for managing Edutopia modules." },
+      { title: "Espace Admin - Edutopia" },
+      { name: "description", content: "Un espace dédié pour gérer les modules Edutopia." },
     ],
   }),
   component: AdminLayout,
@@ -82,8 +82,8 @@ function AdminLayout() {
 
   const heroCards = useMemo(
     () => [
-      { label: "Workspace", value: "Admin", hint: "Dedicated control room" },
-      { label: "Scope", value: String(ADMIN_MODULES.length - 1), hint: "Managed modules" },
+      { label: "Espace", value: "Admin", hint: "Centre de contrôle" },
+      { label: "Périmètre", value: String(ADMIN_MODULES.length - 1), hint: "Modules gérés" },
       { label: "Role", value: user?.role ?? "admin", hint: user ? `${user.first_name} ${user.last_name}` : "Loading" },
     ],
     [user]
@@ -92,7 +92,7 @@ function AdminLayout() {
   if (!mounted || !user) {
     return (
       <section className="container mx-auto grid min-h-[70vh] place-items-center px-4 py-16">
-        <div className="text-center text-muted-foreground">Loading admin workspace...</div>
+        <div className="text-center text-muted-foreground">Chargement de l'espace admin…</div>
       </section>
     )
   }
@@ -100,7 +100,7 @@ function AdminLayout() {
   if (user.role !== "admin") {
     return (
       <section className="container mx-auto grid min-h-[70vh] place-items-center px-4 py-16">
-        <div className="text-center text-muted-foreground">Redirecting...</div>
+        <div className="text-center text-muted-foreground">Redirection…</div>
       </section>
     )
   }
@@ -113,11 +113,11 @@ function AdminLayout() {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-gold">
-                  <Shield className="h-3.5 w-3.5" /> Administrator workspace
+                  <Shield className="h-3.5 w-3.5" /> Espace administrateur
                 </div>
-                <h1 className="font-display text-4xl font-bold md:text-5xl">Operate Edutopia like a product studio</h1>
+                <h1 className="font-display text-4xl font-bold md:text-5xl">Gérez Edutopia comme un studio produit</h1>
                 <p className="mt-4 max-w-2xl text-sm leading-6 text-primary-foreground/80 md:text-base">
-                  Dedicated module pages, cleaner operations, and a focused admin navigation. Move between users, catalog, events, support, team, promo codes, and subscriptions without stacking every tool on a single screen.
+                  Pages de modules dédiées, opérations simplifiées et navigation admin ciblée. Naviguez entre utilisateurs, catalogue, événements, support, équipe, codes promo et abonnements sans tout empiler sur un seul écran.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[360px]">
@@ -142,7 +142,7 @@ function AdminLayout() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Modules</p>
-                <h2 className="font-display text-2xl font-bold text-bordeaux">Navigate</h2>
+                <h2 className="font-display text-2xl font-bold text-bordeaux">Navigation</h2>
               </div>
               <Badge className="bg-gold/15 text-bordeaux border border-gold/30">Admin</Badge>
             </div>
@@ -164,7 +164,7 @@ function AdminLayout() {
               ))}
             </div>
             <div className="mt-6 rounded-2xl border border-dashed border-gold/30 bg-gold/5 p-4 text-sm text-muted-foreground">
-              The public team page is now backed by data. Promo codes can also target a specific product, and subscriptions are managed per user.
+              La page équipe publique est désormais alimentée par des données. Les codes promo peuvent cibler un produit spécifique, et les abonnements sont gérés par utilisateur.
             </div>
           </div>
         </aside>

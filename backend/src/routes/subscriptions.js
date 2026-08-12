@@ -97,13 +97,13 @@ router.post('/:id/receipt',
 
 router.post('/:id/approve-bank-transfer',
   auth,
-  authorize('admin'),
+  authorize('admin', 'commercial'),
   ctrl.approveBankTransfer
 );
 
 router.post('/:id/cancel', auth, ctrl.cancelPending);
 
-router.post('/:id/regenerate-code', auth, authorize('admin'), ctrl.regenerateCode);
+router.post('/:id/regenerate-code', auth, authorize('admin', 'commercial'), ctrl.regenerateCode);
 
 router.post('/',
   auth,
@@ -112,7 +112,7 @@ router.post('/',
   ctrl.create
 );
 
-router.put('/:id', auth, authorize('admin'), updateSubscriptionValidators, ctrl.update);
+router.put('/:id', auth, authorize('admin', 'commercial'), updateSubscriptionValidators, ctrl.update);
 router.delete('/:id', auth, authorize('admin'), ctrl.remove);
 
 module.exports = router;

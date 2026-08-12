@@ -66,8 +66,8 @@ export function SiteHeader() {
   const { lang, setLang, t, isRTL } = useLanguage();
   const isAdminRoute = location.pathname.startsWith("/admin");
 
-  const workspaceHref  = user?.role === "admin" ? "/admin" : user?.role === "teacher" ? "/teacher" : user?.role === "parent" ? "/parent" : "/dashboard";
-  const workspaceLabel = user?.role === "admin" ? "Admin" : user?.role === "teacher" ? t("nav_dashboard") : user?.role === "parent" ? t("nav_dashboard") : (user?.first_name ?? t("nav_dashboard"));
+  const workspaceHref  = user?.role === "admin" ? "/admin" : user?.role === "teacher" ? "/teacher" : user?.role === "parent" ? "/parent" : user?.role === "commercial" ? "/commercial" : "/dashboard";
+  const workspaceLabel = user?.role === "admin" ? "Admin" : user?.role === "commercial" ? "Commercial" : user?.role === "teacher" ? t("nav_dashboard") : user?.role === "parent" ? t("nav_dashboard") : (user?.first_name ?? t("nav_dashboard"));
   const visibleNavDefs = user?.role === "teacher" ? teacherNavDefs : user?.role === "parent" ? parentNavDefs : navDefs;
 
   // Dark mode — read persisted preference (or system) on mount
@@ -146,7 +146,7 @@ export function SiteHeader() {
                 className="border-bordeaux text-bordeaux hover:bg-bordeaux/5"
                 onClick={logout}
               >
-                <LogOut className="h-4 w-4 mr-1" /> Logout
+                <LogOut className="h-4 w-4 mr-1" /> Déconnexion
               </Button>
             )}
           </div>
@@ -193,8 +193,8 @@ export function SiteHeader() {
           <button
             onClick={toggleDark}
             className="grid h-8 w-8 place-items-center rounded-full border border-border text-foreground/70 transition-all hover:text-bordeaux hover:border-bordeaux/40 hover:bg-bordeaux/5"
-            title={dark ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+            title={dark ? "Passer en mode clair" : "Passer en mode sombre"}
+            aria-label={dark ? "Passer en mode clair" : "Passer en mode sombre"}
           >
             <span className="dark-toggle-icon">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -204,12 +204,12 @@ export function SiteHeader() {
           <button
             onClick={() => setLang(lang === "en" ? "ar" : "en")}
             className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:text-bordeaux hover:border-bordeaux/40 transition-all"
-            title={lang === "en" ? "Switch to Arabic" : "Switch to English"}
+            title={lang === "en" ? "Passer en arabe" : "Passer en français"}
           >
             {lang === "en" ? (
               <><span className="text-base leading-none">🇹🇳</span> عربي</>
             ) : (
-              <><span className="text-base leading-none">🇬🇧</span> EN</>
+              <><span className="text-base leading-none">🇫🇷</span> FR</>
             )}
           </button>
 
@@ -253,7 +253,7 @@ export function SiteHeader() {
         <button
           className="rounded-md p-2 text-bordeaux transition-colors hover:bg-bordeaux/5"
           onClick={() => setOpen(!open)}
-          aria-label="Toggle menu"
+          aria-label="Ouvrir le menu"
           aria-expanded={open}
         >
           <span
@@ -298,7 +298,7 @@ export function SiteHeader() {
               onClick={() => setLang(lang === "en" ? "ar" : "en")}
               className={`mt-1 flex items-center gap-2 rounded-md px-4 py-3 text-sm font-medium text-foreground/70 hover:bg-bordeaux/5 hover:text-bordeaux transition-colors ${isRTL ? "justify-end" : ""}`}
             >
-              {lang === "en" ? (<><span>🇹🇳</span> عربي</>) : (<><span>🇬🇧</span> English</>)}
+              {lang === "en" ? (<><span>🇹🇳</span> عربي</>) : (<><span>🇫🇷</span> Français</>)}
             </button>
             {/* Mobile dark mode toggle */}
             <button
@@ -308,7 +308,7 @@ export function SiteHeader() {
               <span className="dark-toggle-icon">
                 {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </span>
-              {dark ? "Light mode" : "Dark mode"}
+              {dark ? "Mode clair" : "Mode sombre"}
             </button>
             <div className="flex gap-2 pt-3 border-t border-border mt-2">
               {loggedIn ? (

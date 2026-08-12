@@ -118,7 +118,7 @@ async function getPlans(_req, res) {
 async function getAll(req, res) {
   let rows;
 
-  if (req.user.role === 'admin') {
+  if (req.user.role === 'admin' || req.user.role === 'commercial') {
     [rows] = await db.query(
       `SELECT s.*, u.first_name, u.last_name, u.email
        FROM subscriptions s

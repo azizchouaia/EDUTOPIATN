@@ -21,11 +21,11 @@ type AdminListControlsProps = {
   sort?: ControlSelect
 }
 
-export function AdminListControls({ search, onSearchChange, searchPlaceholder = "Search records", filters = [], sort }: AdminListControlsProps) {
+export function AdminListControls({ search, onSearchChange, searchPlaceholder = "Rechercher...", filters = [], sort }: AdminListControlsProps) {
   return (
     <div className="mb-4 grid gap-4 rounded-xl border border-border/70 bg-muted/20 p-4 md:grid-cols-2 xl:grid-cols-4">
       <div className="space-y-1.5 xl:col-span-2">
-        <Label>Search</Label>
+        <Label>Rechercher</Label>
         <Input value={search} placeholder={searchPlaceholder} onChange={(event) => onSearchChange(event.target.value)} />
       </div>
 

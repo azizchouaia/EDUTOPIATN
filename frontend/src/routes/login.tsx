@@ -22,8 +22,8 @@ export const Route = createFileRoute("/login")({
   }),
   head: () => ({
     meta: [
-      { title: "Sign in — Edutopia" },
-      { name: "description", content: "Sign in or create your Edutopia account to access courses, tests and the marketplace." },
+      { title: "Connexion — Edutopia" },
+      { name: "description", content: "Connectez-vous ou créez votre compte Edutopia pour accéder aux cours, tests et à la boutique." },
     ],
   }),
   component: LoginPage,
@@ -35,21 +35,22 @@ const signinSchema = z.object({
 })
 
 const signupSchema = z.object({
-  first_name: z.string().trim().min(2, "Le prenom doit contenir au moins 2 caracteres"),
-  last_name: z.string().trim().min(2, "Le nom doit contenir au moins 2 caracteres"),
+  first_name: z.string().trim().min(2, "Le prénom doit contenir au moins 2 caractères"),
+  last_name: z.string().trim().min(2, "Le nom doit contenir au moins 2 caractères"),
   email: z.string().trim().email("Saisissez une adresse e-mail valide"),
-  phone: z.string().trim().regex(/^\+?[0-9 ]{8,15}$/, "Saisissez un numero de telephone valide"),
-  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caracteres"),
+  phone: z.string().trim().regex(/^\+?[0-9 ]{8,15}$/, "Saisissez un numéro de téléphone valide"),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
   role: z.enum(["student", "teacher", "parent"]),
   grade_code: z.enum(GRADE_CODES).optional().or(z.literal("")),
   section_code: z.enum(SECTION_CODES).optional().or(z.literal("")),
+  student_code: z.string().trim().optional().or(z.literal("")),
 }).superRefine((value, context) => {
   if (value.role === "student" && !value.grade_code) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["grade_code"], message: "Selectionnez une classe" })
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["grade_code"], message: "Sélectionnez une classe" })
   }
 
   if (value.role === "student" && needsSection(value.grade_code) && !value.section_code) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["section_code"], message: "Selectionnez une section" })
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["section_code"], message: "Sélectionnez une section" })
   }
 })
 
@@ -60,7 +61,7 @@ const requestResetSchema = z.object({
 const confirmResetSchema = z.object({
   email: z.string().trim().email("Saisissez une adresse e-mail valide"),
   code: z.string().trim().regex(/^\d{6}$/, "Le code doit contenir 6 chiffres"),
-  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caracteres"),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
   confirm: z.string(),
 }).refine((value) => value.password === value.confirm, {
   message: "Les mots de passe ne correspondent pas",
@@ -72,10 +73,11 @@ type SignupForm = z.infer<typeof signupSchema>
 type RequestResetForm = z.infer<typeof requestResetSchema>
 type ConfirmResetForm = z.infer<typeof confirmResetSchema>
 
-function getPostAuthPath(role: "admin" | "teacher" | "student" | "parent") {
+function getPostAuthPath(role: string) {
   if (role === "admin") return "/admin"
   if (role === "teacher") return "/teacher"
   if (role === "parent") return "/parent"
+  if (role === "commercial") return "/commercial"
   return "/dashboard"
 }
 
@@ -96,7 +98,7 @@ function PasswordInput({ id, placeholder, registration, autoComplete }: { id: st
         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
         onClick={() => setShow((v) => !v)}
         tabIndex={-1}
-        aria-label={show ? "Hide password" : "Show password"}
+        aria-label={show ? "Masquer le mot de passe" : "Afficher le mot de passe"}
       >
         {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>
@@ -178,7 +180,7 @@ function LoginPage() {
   const resetPasswordMutation = useResetPassword();
 
   const signinForm = useForm<SigninForm>({ resolver: zodResolver(signinSchema), defaultValues: { email: "", password: "" } });
-  const signupForm = useForm<SignupForm>({ resolver: zodResolver(signupSchema), defaultValues: { first_name: "", last_name: "", email: "", phone: "", password: "", role: "student", grade_code: "", section_code: "" } });
+  const signupForm = useForm<SignupForm>({ resolver: zodResolver(signupSchema), defaultValues: { first_name: "", last_name: "", email: "", phone: "", password: "", role: "student", grade_code: "", section_code: "", student_code: "" } });
   const requestResetForm = useForm<RequestResetForm>({ resolver: zodResolver(requestResetSchema), defaultValues: { email: "" } });
   const confirmResetForm = useForm<ConfirmResetForm>({ resolver: zodResolver(confirmResetSchema), defaultValues: { email: "", code: "", password: "", confirm: "" } });
   const signupRole = signupForm.watch("role")
@@ -217,10 +219,11 @@ function LoginPage() {
         role: data.role,
         grade_code: data.role === "student" && data.grade_code ? data.grade_code : undefined,
         section_code: data.role === "student" && needsSection(data.grade_code) && data.section_code ? data.section_code : undefined,
+        student_code: data.role === "parent" && data.student_code ? data.student_code.toUpperCase() : undefined,
       });
-      toast.success("Compte cree. Connectez-vous maintenant.");
+      toast.success("Compte créé. Connectez-vous maintenant.");
       switchMode("signin");
-      signupForm.reset({ first_name: "", last_name: "", email: "", phone: "", password: "", role: "student", grade_code: "", section_code: "" });
+      signupForm.reset({ first_name: "", last_name: "", email: "", phone: "", password: "", role: "student", grade_code: "", section_code: "", student_code: "" });
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? "Inscription impossible.");
     }
@@ -253,7 +256,7 @@ function LoginPage() {
       setResetStep("request");
       switchMode("signin");
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? "Reinitialisation impossible.");
+      toast.error(err?.response?.data?.message ?? "Réinitialisation impossible.");
     }
   }
 
@@ -305,7 +308,7 @@ function LoginPage() {
         </Link>
         <div className="relative">
           <h2 className="font-display text-4xl lg:text-5xl font-bold leading-tight">
-            "Education is the most powerful weapon you can use to change the world."
+            "L'éducation est l'arme la plus puissante que vous puissiez utiliser pour changer le monde."
           </h2>
           <div className="gold-divider mt-6" />
           <p className="mt-4 text-primary-foreground/80">— Nelson Mandela</p>
@@ -466,6 +469,23 @@ function LoginPage() {
                   )}
                 </>
               )}
+              {signupRole === "parent" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="student_code">Code élève <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
+                  <Input
+                    id="student_code"
+                    type="text"
+                    placeholder="STU-EDU-00001"
+                    className="uppercase tracking-widest font-mono font-bold text-bordeaux border-gold/40 bg-gold/5 placeholder:text-bordeaux/30 focus-visible:ring-gold/40"
+                    {...signupForm.register("student_code")}
+                    onChange={(e) => signupForm.setValue("student_code", e.target.value.toUpperCase())}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Entrez le code de l'élève (reçu par e-mail à l'inscription) pour être lié automatiquement.
+                  </p>
+                  {signupForm.formState.errors.student_code ? <p className="text-xs text-destructive">{signupForm.formState.errors.student_code.message}</p> : null}
+                </div>
+              )}
               <Button type="submit" disabled={registerMutation.isPending} className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90 shadow-elegant h-11">
                 {registerMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("login_creating")}</> : t("login_create_btn")}
               </Button>
@@ -478,13 +498,13 @@ function LoginPage() {
             <>
               <div className="relative my-5 flex items-center gap-3 text-xs text-muted-foreground">
                 <div className="flex-1 border-t border-border" />
-                <span>or continue with</span>
+                <span>ou continuer avec</span>
                 <div className="flex-1 border-t border-border" />
               </div>
               <div className={googlePending ? "flex justify-center opacity-60 pointer-events-none" : "flex justify-center"}>
                 <GoogleLogin
                   onSuccess={(cred) => { if (cred.credential) void handleGoogleAuth(cred.credential); }}
-                  onError={() => toast.error("Google sign-in failed.")}
+                  onError={() => toast.error("Connexion Google impossible.")}
                   theme="outline"
                   text={mode === "signin" ? "signin_with" : "signup_with"}
                   shape="rectangular"
@@ -494,10 +514,10 @@ function LoginPage() {
               </div>
               {mode === "signup" && (
                 <p className="mt-5 text-center text-xs text-muted-foreground">
-                  By creating an account you agree to our{" "}
-                  <Link to="/terms" className="font-medium text-bordeaux hover:underline">Terms of Service</Link>
-                  {" "}and{" "}
-                  <Link to="/privacy" className="font-medium text-bordeaux hover:underline">Privacy Policy</Link>.
+                  En créant un compte, vous acceptez nos{" "}
+                  <Link to="/terms" className="font-medium text-bordeaux hover:underline">Conditions d'utilisation</Link>
+                  {" "}et{" "}
+                  <Link to="/privacy" className="font-medium text-bordeaux hover:underline">Politique de confidentialité</Link>.
                 </p>
               )}
             </>
@@ -505,13 +525,13 @@ function LoginPage() {
 
           {mode === "forgot" && (
             <p className="mt-6 text-sm text-center text-muted-foreground">
-              Back to your account?{" "}
+              Retour à votre compte ?{" "}
               <button
                 type="button"
                 onClick={backToSignin}
                 className="font-semibold text-bordeaux hover:underline"
               >
-                Sign in
+                Se connecter
               </button>
             </p>
           )}

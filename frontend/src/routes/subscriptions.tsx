@@ -44,9 +44,9 @@ export const Route = createFileRoute("/subscriptions")({
 type BillingCycle = "1_month" | "3_months" | "1_year";
 
 const billingCycleLabels: Record<BillingCycle, string> = {
-  "1_month": "1 month",
-  "3_months": "3 months",
-  "1_year": "1 year",
+  "1_month": "1 mois",
+  "3_months": "3 mois",
+  "1_year": "1 an",
 };
 
 function cyclePrice(plan: SubscriptionPlan, cycle: BillingCycle) {
@@ -56,8 +56,8 @@ function cyclePrice(plan: SubscriptionPlan, cycle: BillingCycle) {
 }
 
 function planBadge(plan: SubscriptionPlan) {
-  if (plan.is_popular) return "Most popular";
-  if (plan.is_recommended) return "Recommended";
+  if (plan.is_popular) return "Le plus populaire";
+  if (plan.is_recommended) return "Recommandé";
   return null;
 }
 function SubscriptionsPage() {
@@ -106,20 +106,20 @@ function SubscriptionsPage() {
       queryClient.invalidateQueries({ queryKey: ["subscription-access-status"] });
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? "Failed to create subscription");
+      toast.error(error?.response?.data?.message ?? "Création de l'abonnement impossible");
     },
   });
 
   const activateMutation = useMutation({
     mutationFn: () => api.post("/subscriptions/activate-code", { code: activationCode }),
     onSuccess: () => {
-      toast.success("Subscription activated");
+      toast.success("Abonnement activé");
       setActivationCode("");
       queryClient.invalidateQueries({ queryKey: ["my-subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["subscription-access-status"] });
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? "Failed to activate code");
+      toast.error(error?.response?.data?.message ?? "Activation du code impossible");
     },
   });
 
@@ -135,13 +135,13 @@ function SubscriptionsPage() {
       });
     },
     onSuccess: () => {
-      toast.success("Receipt uploaded. Waiting for admin approval.");
+      toast.success("Reçu uploadé. En attente d'approbation admin.");
       setReceiptFile(null);
       queryClient.invalidateQueries({ queryKey: ["my-subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["subscription-access-status"] });
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.message ?? error?.message ?? "Failed to upload receipt");
+      toast.error(error?.response?.data?.message ?? error?.message ?? "Envoi du reçu impossible");
     },
   });
 
@@ -252,11 +252,11 @@ function SubscriptionsPage() {
 
       <section className="bg-gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-20 text-center">
-          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gold">Subscriptions</span>
-          <h1 className="mt-3 font-display text-5xl font-bold md:text-6xl">Choose your Edutopia plan</h1>
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gold">Abonnements</span>
+          <h1 className="mt-3 font-display text-5xl font-bold md:text-6xl">Choisissez votre formule Edutopia</h1>
           <div className="gold-divider mx-auto my-6" />
           <p className="mx-auto max-w-2xl text-primary-foreground/80">
-            This page is separate from the shop. Pick your plan and choose if you want it for 1 month, 3 months, or 1 year.
+            Cette page est distincte de la boutique. Choisissez votre formule pour 1 mois, 3 mois ou 1 an.
           </p>
         </div>
       </section>
@@ -287,12 +287,12 @@ function SubscriptionsPage() {
           <Card className="mx-auto mb-10 max-w-3xl border-gold/50 bg-gold/5 shadow-elegant">
             <CardContent className="flex flex-col gap-3 p-6 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-bordeaux">Active subscription</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-bordeaux">Abonnement actif</div>
                 <div className="mt-2 font-display text-2xl font-bold text-foreground">{activeSubscription.plan} · {activeSubscription.billing_cycle?.replaceAll("_", " ") ?? "custom"}</div>
-                <div className="mt-1 text-sm text-muted-foreground">Valid until {activeSubscription.end_date}</div>
+                <div className="mt-1 text-sm text-muted-foreground">Valide jusqu'au {activeSubscription.end_date}</div>
               </div>
               <Button asChild variant="outline" className="border-bordeaux text-bordeaux hover:bg-bordeaux/5">
-                <Link to="/profile">View profile</Link>
+                <Link to="/profile">Voir le profil</Link>
               </Button>
             </CardContent>
           </Card>
@@ -302,46 +302,46 @@ function SubscriptionsPage() {
           <Card className="mx-auto mb-10 max-w-3xl border-bordeaux/20 bg-white/90 dark:bg-card shadow-elegant">
             <CardContent className="grid gap-5 p-6 md:grid-cols-[1fr_auto] md:items-end">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-bordeaux">Activation required</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.25em] text-bordeaux">Activation requise</div>
                 <div className="mt-2 font-display text-2xl font-bold text-foreground">
                   {pendingSubscription.status === "pending_payment"
-                    ? "Complete your online payment"
+                    ? "Finalisez votre paiement en ligne"
                     : pendingSubscription.status === "pending_receipt"
-                      ? "Upload your bank-transfer receipt"
+                      ? "Uploadez votre reçu de virement bancaire"
                       : pendingSubscription.status === "pending_approval"
-                        ? "Your receipt is under admin review"
-                        : "Your subscription is waiting for code activation"}
+                        ? "Votre reçu est en cours de révision par l'admin"
+                        : "Votre abonnement attend l'activation par code"}
                 </div>
                 <div className="mt-2 text-sm text-muted-foreground">
                   {pendingSubscription.status === "pending_payment"
-                    ? "You started an online payment that hasn't been confirmed yet. If you already paid, your activation code will appear here shortly. Otherwise, cancel this request and try again."
+                    ? "Vous avez initié un paiement en ligne non encore confirmé. Si vous avez déjà payé, votre code d'activation apparaîtra ici sous peu. Sinon, annulez cette demande et réessayez."
                     : pendingSubscription.status === "pending_receipt"
-                      ? "Bank transfer does not show a code immediately. Upload the receipt here first, then wait for the admin to approve it."
+                      ? "Le virement bancaire n'affiche pas de code immédiatement. Uploadez d'abord le reçu, puis attendez l'approbation de l'admin."
                       : pendingSubscription.status === "pending_approval"
-                        ? "The receipt is already uploaded. The code will only appear after admin approval."
-                        : "Enter the code here to unlock courses and events. New purchases stay blocked while one activation is already pending."}
+                        ? "Le reçu est déjà uploadé. Le code n'apparaîtra qu'après l'approbation de l'admin."
+                        : "Entrez le code pour débloquer les cours et événements. Les nouveaux achats restent bloqués tant qu'une activation est en attente."}
                 </div>
                 {pendingSubscription.status === "pending_code" && accessStatus?.development_code ? (
                   <div className="mt-4 inline-flex rounded-full border border-dashed border-gold/60 bg-gold/10 px-4 py-2 text-sm font-medium text-bordeaux-deep">
-                    Development code: {accessStatus.development_code}
+                    Code de développement : {accessStatus.development_code}
                   </div>
                 ) : null}
                 {pendingSubscription.bank_receipt_path ? (
                   <div className="mt-4 text-sm text-muted-foreground">
-                    Uploaded receipt: <a className="font-medium text-bordeaux underline-offset-4 hover:underline" href={assetUrl(pendingSubscription.bank_receipt_path) ?? undefined} target="_blank" rel="noreferrer">{pendingSubscription.bank_receipt_original_name ?? "Open receipt"}</a>
+                    Uploaded receipt: <a className="font-medium text-bordeaux underline-offset-4 hover:underline" href={assetUrl(pendingSubscription.bank_receipt_path) ?? undefined} target="_blank" rel="noreferrer">{pendingSubscription.bank_receipt_original_name ?? "Ouvrir le reçu"}</a>
                   </div>
                 ) : null}
                 {pendingSubscription.status === "pending_receipt" ? (
                   <div className="mt-4 max-w-md space-y-3">
                     <Input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)} className="border-bordeaux/20" />
-                    <p className="text-xs text-muted-foreground">Accepted formats: JPG, PNG, WEBP, or PDF. Max size: 5 MB.</p>
+                    <p className="text-xs text-muted-foreground">Formats acceptés : JPG, PNG, WEBP ou PDF. Taille max : 5 Mo.</p>
                   </div>
                 ) : null}
                 {pendingSubscription.status === "pending_code" ? (
                   <Input
                     value={activationCode}
                     onChange={(event) => setActivationCode(event.target.value.toUpperCase())}
-                    placeholder="Enter activation code"
+                    placeholder="Entrer le code d'activation"
                     className="mt-4 max-w-md border-bordeaux/20"
                   />
                 ) : null}
@@ -349,7 +349,7 @@ function SubscriptionsPage() {
               <div className="flex flex-col gap-2">
                 {pendingSubscription.status === "pending_payment" ? (
                   <Button type="button" disabled className="bg-gradient-bordeaux text-primary-foreground opacity-80">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Awaiting payment confirmation
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> En attente de confirmation de paiement
                   </Button>
                 ) : pendingSubscription.status === "pending_receipt" ? (
                   <Button
@@ -358,12 +358,12 @@ function SubscriptionsPage() {
                     onClick={() => uploadReceiptMutation.mutate()}
                     disabled={!receiptFile || uploadReceiptMutation.isPending}
                   >
-                    {uploadReceiptMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</> : "Upload receipt"}
+                    {uploadReceiptMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Envoi en cours...</> : "Envoyer le reçu"}
                   </Button>
                 ) : pendingSubscription.status === "pending_code" ? (
                   <>
                     {isCodeExpired ? (
-                      <p className="text-xs text-amber-700">Code expired. Contact an admin to regenerate your activation code.</p>
+                      <p className="text-xs text-amber-700">Code expiré. Contactez un admin pour régénérer votre code d'activation.</p>
                     ) : null}
                     <Button
                       type="button"
@@ -371,12 +371,12 @@ function SubscriptionsPage() {
                       onClick={() => activateMutation.mutate()}
                       disabled={!activationCode.trim() || activateMutation.isPending || isCodeExpired}
                     >
-                      {activateMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Activating...</> : "Activate code"}
+                      {activateMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Activation...</> : "Activer le code"}
                     </Button>
                   </>
                 ) : (
                   <Button type="button" disabled className="bg-gradient-bordeaux text-primary-foreground opacity-80">
-                    Waiting for admin approval
+                    En attente d'approbation admin
                   </Button>
                 )}
                 <Button
@@ -386,7 +386,7 @@ function SubscriptionsPage() {
                   onClick={() => cancelMutation.mutate()}
                   disabled={cancelMutation.isPending}
                 >
-                  {cancelMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelling...</> : "Cancel this request"}
+                  {cancelMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Annulation...</> : "Annuler cette demande"}
                 </Button>
               </div>
             </CardContent>
@@ -437,7 +437,7 @@ function SubscriptionsPage() {
                     onClick={() => handleSubscribe(plan)}
                     disabled={checkoutMutation.isPending || Boolean(activeSubscription) || Boolean(pendingSubscription)}
                   >
-                    {checkoutMutation.isPending ? "Processing..." : activeSubscription ? "Already active" : pendingSubscription ? "Activation pending" : `Subscribe for ${billingCycleLabels[billingCycle]}`}
+                    {checkoutMutation.isPending ? "Traitement en cours..." : activeSubscription ? "Déjà actif" : pendingSubscription ? "Activation en attente" : `S'abonner pour ${billingCycleLabels[billingCycle]}`}
                   </Button>
                 </div>
               );

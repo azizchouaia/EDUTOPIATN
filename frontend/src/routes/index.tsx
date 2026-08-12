@@ -8,10 +8,10 @@ import heroImg from "@/assets/hero.jpg";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Edutopia — Learn with Elegance" },
-      { name: "description", content: "Discover refined courses, video & PDF lessons, tests with corrections, and a curated marketplace at Edutopia." },
-      { property: "og:title", content: "Edutopia — Learn with Elegance" },
-      { property: "og:description", content: "Premium e-education: courses, tests, marketplace, subscriptions." },
+      { title: "Edutopia — Apprenez avec Élégance" },
+      { name: "description", content: "Découvrez des cours soignés, leçons vidéo & PDF, tests avec corrections, et une boutique sélectionnée sur Edutopia." },
+      { property: "og:title", content: "Edutopia — Apprenez avec Élégance" },
+      { property: "og:description", content: "E-éducation premium : cours, tests, boutique, abonnements." },
     ],
   }),
   component: HomePage,

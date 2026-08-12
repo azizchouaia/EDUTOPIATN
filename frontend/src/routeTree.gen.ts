@@ -24,12 +24,15 @@ import { Route as KhlayelRouteImport } from './routes/khlayel'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoursesRouteImport } from './routes/courses'
+import { Route as CommercialRouteImport } from './routes/commercial'
 import { Route as BacRouteImport } from './routes/bac'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CoursesIndexRouteImport } from './routes/courses.index'
+import { Route as CommercialIndexRouteImport } from './routes/commercial.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as CoursesSubjectSlugRouteImport } from './routes/courses.$subjectSlug'
+import { Route as CommercialModuleRouteImport } from './routes/commercial.$module'
 import { Route as AdminModuleRouteImport } from './routes/admin.$module'
 import { Route as CoursesSubjectSlugIndexRouteImport } from './routes/courses.$subjectSlug.index'
 import { Route as CoursesSubjectSlugChapterSlugRouteImport } from './routes/courses.$subjectSlug.$chapterSlug'
@@ -109,6 +112,11 @@ const CoursesRoute = CoursesRouteImport.update({
   path: '/courses',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CommercialRoute = CommercialRouteImport.update({
+  id: '/commercial',
+  path: '/commercial',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BacRoute = BacRouteImport.update({
   id: '/bac',
   path: '/bac',
@@ -129,6 +137,11 @@ const CoursesIndexRoute = CoursesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => CoursesRoute,
 } as any)
+const CommercialIndexRoute = CommercialIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CommercialRoute,
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -138,6 +151,11 @@ const CoursesSubjectSlugRoute = CoursesSubjectSlugRouteImport.update({
   id: '/$subjectSlug',
   path: '/$subjectSlug',
   getParentRoute: () => CoursesRoute,
+} as any)
+const CommercialModuleRoute = CommercialModuleRouteImport.update({
+  id: '/$module',
+  path: '/$module',
+  getParentRoute: () => CommercialRoute,
 } as any)
 const AdminModuleRoute = AdminModuleRouteImport.update({
   id: '/$module',
@@ -160,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/bac': typeof BacRoute
+  '/commercial': typeof CommercialRouteWithChildren
   '/courses': typeof CoursesRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
@@ -176,8 +195,10 @@ export interface FileRoutesByFullPath {
   '/team': typeof TeamRoute
   '/terms': typeof TermsRoute
   '/admin/$module': typeof AdminModuleRoute
+  '/commercial/$module': typeof CommercialModuleRoute
   '/courses/$subjectSlug': typeof CoursesSubjectSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
+  '/commercial/': typeof CommercialIndexRoute
   '/courses/': typeof CoursesIndexRoute
   '/courses/$subjectSlug/$chapterSlug': typeof CoursesSubjectSlugChapterSlugRoute
   '/courses/$subjectSlug/': typeof CoursesSubjectSlugIndexRoute
@@ -200,7 +221,9 @@ export interface FileRoutesByTo {
   '/team': typeof TeamRoute
   '/terms': typeof TermsRoute
   '/admin/$module': typeof AdminModuleRoute
+  '/commercial/$module': typeof CommercialModuleRoute
   '/admin': typeof AdminIndexRoute
+  '/commercial': typeof CommercialIndexRoute
   '/courses': typeof CoursesIndexRoute
   '/courses/$subjectSlug/$chapterSlug': typeof CoursesSubjectSlugChapterSlugRoute
   '/courses/$subjectSlug': typeof CoursesSubjectSlugIndexRoute
@@ -210,6 +233,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/bac': typeof BacRoute
+  '/commercial': typeof CommercialRouteWithChildren
   '/courses': typeof CoursesRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
@@ -226,8 +250,10 @@ export interface FileRoutesById {
   '/team': typeof TeamRoute
   '/terms': typeof TermsRoute
   '/admin/$module': typeof AdminModuleRoute
+  '/commercial/$module': typeof CommercialModuleRoute
   '/courses/$subjectSlug': typeof CoursesSubjectSlugRouteWithChildren
   '/admin/': typeof AdminIndexRoute
+  '/commercial/': typeof CommercialIndexRoute
   '/courses/': typeof CoursesIndexRoute
   '/courses/$subjectSlug/$chapterSlug': typeof CoursesSubjectSlugChapterSlugRoute
   '/courses/$subjectSlug/': typeof CoursesSubjectSlugIndexRoute
@@ -238,6 +264,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bac'
+    | '/commercial'
     | '/courses'
     | '/dashboard'
     | '/events'
@@ -254,8 +281,10 @@ export interface FileRouteTypes {
     | '/team'
     | '/terms'
     | '/admin/$module'
+    | '/commercial/$module'
     | '/courses/$subjectSlug'
     | '/admin/'
+    | '/commercial/'
     | '/courses/'
     | '/courses/$subjectSlug/$chapterSlug'
     | '/courses/$subjectSlug/'
@@ -278,7 +307,9 @@ export interface FileRouteTypes {
     | '/team'
     | '/terms'
     | '/admin/$module'
+    | '/commercial/$module'
     | '/admin'
+    | '/commercial'
     | '/courses'
     | '/courses/$subjectSlug/$chapterSlug'
     | '/courses/$subjectSlug'
@@ -287,6 +318,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bac'
+    | '/commercial'
     | '/courses'
     | '/dashboard'
     | '/events'
@@ -303,8 +335,10 @@ export interface FileRouteTypes {
     | '/team'
     | '/terms'
     | '/admin/$module'
+    | '/commercial/$module'
     | '/courses/$subjectSlug'
     | '/admin/'
+    | '/commercial/'
     | '/courses/'
     | '/courses/$subjectSlug/$chapterSlug'
     | '/courses/$subjectSlug/'
@@ -314,6 +348,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   BacRoute: typeof BacRoute
+  CommercialRoute: typeof CommercialRouteWithChildren
   CoursesRoute: typeof CoursesRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
@@ -438,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoursesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/commercial': {
+      id: '/commercial'
+      path: '/commercial'
+      fullPath: '/commercial'
+      preLoaderRoute: typeof CommercialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bac': {
       id: '/bac'
       path: '/bac'
@@ -466,6 +508,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoursesIndexRouteImport
       parentRoute: typeof CoursesRoute
     }
+    '/commercial/': {
+      id: '/commercial/'
+      path: '/'
+      fullPath: '/commercial/'
+      preLoaderRoute: typeof CommercialIndexRouteImport
+      parentRoute: typeof CommercialRoute
+    }
     '/admin/': {
       id: '/admin/'
       path: '/'
@@ -479,6 +528,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/courses/$subjectSlug'
       preLoaderRoute: typeof CoursesSubjectSlugRouteImport
       parentRoute: typeof CoursesRoute
+    }
+    '/commercial/$module': {
+      id: '/commercial/$module'
+      path: '/$module'
+      fullPath: '/commercial/$module'
+      preLoaderRoute: typeof CommercialModuleRouteImport
+      parentRoute: typeof CommercialRoute
     }
     '/admin/$module': {
       id: '/admin/$module'
@@ -516,6 +572,20 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface CommercialRouteChildren {
+  CommercialModuleRoute: typeof CommercialModuleRoute
+  CommercialIndexRoute: typeof CommercialIndexRoute
+}
+
+const CommercialRouteChildren: CommercialRouteChildren = {
+  CommercialModuleRoute: CommercialModuleRoute,
+  CommercialIndexRoute: CommercialIndexRoute,
+}
+
+const CommercialRouteWithChildren = CommercialRoute._addFileChildren(
+  CommercialRouteChildren,
+)
+
 interface CoursesSubjectSlugRouteChildren {
   CoursesSubjectSlugChapterSlugRoute: typeof CoursesSubjectSlugChapterSlugRoute
   CoursesSubjectSlugIndexRoute: typeof CoursesSubjectSlugIndexRoute
@@ -546,6 +616,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   BacRoute: BacRoute,
+  CommercialRoute: CommercialRouteWithChildren,
   CoursesRoute: CoursesRouteWithChildren,
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,

@@ -53,10 +53,10 @@ const promoUpdateValidators = [
 
 router.get('/products',         auth, ctrl.getProducts);
 router.get('/orders',           auth, ctrl.getMyOrders);
-router.get('/orders/all',       auth, authorize('admin'), ctrl.getAllOrders);
-router.put('/orders/:id/status', auth, authorize('admin'), [body('status').isIn(['pending', 'paid', 'cancelled', 'refunded']).withMessage('Le statut de commande est invalide.')], ctrl.updateOrderStatus);
+router.get('/orders/all',       auth, authorize('admin', 'commercial'), ctrl.getAllOrders);
+router.put('/orders/:id/status', auth, authorize('admin', 'commercial'), [body('status').isIn(['pending', 'paid', 'cancelled', 'refunded']).withMessage('Le statut de commande est invalide.')], ctrl.updateOrderStatus);
 router.delete('/orders/:id',    auth, ctrl.deleteOrder);
-router.get('/promo-codes',      auth, authorize('admin'), ctrl.getPromoCodes);
+router.get('/promo-codes',      auth, authorize('admin', 'commercial'), ctrl.getPromoCodes);
 router.post('/validate-promo',  auth, ctrl.validatePromo);
 
 router.post('/products',

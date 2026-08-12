@@ -16,7 +16,7 @@ router.post('/',
   ctrl.create
 );
 
-router.put('/:id/status', auth, authorize('admin'), [body('status').isIn(['open', 'in_progress', 'resolved']).withMessage('Le statut est invalide.')], ctrl.updateStatus);
+router.put('/:id/status', auth, authorize('admin', 'commercial'), [body('status').isIn(['open', 'in_progress', 'resolved']).withMessage('Le statut est invalide.')], ctrl.updateStatus);
 router.delete('/:id', auth, authorize('admin'), ctrl.remove);
 
 module.exports = router;

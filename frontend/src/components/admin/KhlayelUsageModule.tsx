@@ -56,7 +56,7 @@ export function KhlayelUsageModule() {
   return (
     <div className="space-y-6">
       <AdminPageIntro
-        eyebrow="Khlayel AI"
+        eyebrow="Khlayel IA"
         title="Utilisation de l'assistant"
         description="Tokens consommés, activité par jour, répartition par modèle et élèves les plus actifs."
       />

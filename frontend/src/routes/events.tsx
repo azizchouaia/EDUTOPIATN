@@ -40,16 +40,16 @@ export const Route = createFileRoute("/events")({
   },
   head: () => ({
     meta: [
-      { title: "Live Events — Edutopia" },
-      { name: "description", content: "Join live course events hosted by Edutopia teachers. Limited seats — reserve your spot today." },
-      { property: "og:title", content: "Live Events — Edutopia" },
-      { property: "og:description", content: "Live course sessions with limited seats, hosted by Edutopia's teachers." },
+      { title: "Événements en direct — Edutopia" },
+      { name: "description", content: "Rejoignez les sessions de cours en direct animées par les enseignants Edutopia. Places limitées — réservez votre place dès aujourd'hui." },
+      { property: "og:title", content: "Événements en direct — Edutopia" },
+      { property: "og:description", content: "Sessions de cours en direct avec places limitées, animées par les enseignants d'Edutopia." },
     ],
   }),
   component: EventsPage,
 });
 
-const CATEGORIES = ["All", "Development", "Design", "Business", "Data", "Arts"];
+const CATEGORIES = ["Tous", "Développement", "Design", "Business", "Data", "Arts"];
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -79,7 +79,7 @@ function EventsPage() {
   const registerMutation = useMutation({
     mutationFn: (eventId: number) => api.post(`/events/${eventId}/register`),
     onSuccess: () => {
-      toast.success("Place reservee.");
+      toast.success("Place réservée.");
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (err: any) => {
@@ -90,7 +90,7 @@ function EventsPage() {
   const cancelMutation = useMutation({
     mutationFn: (eventId: number) => api.delete(`/events/${eventId}/register`),
     onSuccess: () => {
-      toast.success("Inscription annulee.");
+      toast.success("Inscription annulée.");
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (err: any) => {
@@ -110,12 +110,12 @@ function EventsPage() {
       is_free: boolean;
     }) => api.post("/events", data),
     onSuccess: () => {
-      toast.success("Evenement publie.");
+      toast.success("Événement publié.");
       setCreateOpen(false);
       queryClient.invalidateQueries({ queryKey: ["events"] });
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? "Creation de l'evenement impossible.");
+      toast.error(err?.response?.data?.message ?? "Création de l'événement impossible.");
     },
   });
 
@@ -139,7 +139,7 @@ function EventsPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher une session, un enseignant ou une categorie"
+              placeholder="Rechercher une session, un enseignant ou une catégorie"
               className="pl-9"
             />
           </div>
@@ -281,7 +281,7 @@ function EventCard({
         return (
           <Button disabled className="bg-gradient-bordeaux text-primary-foreground opacity-60">
             <Clock className="mr-2 h-4 w-4" />
-            {isStarting ? "Lien non encore publie" : "Lien disponible au debut du live"}
+            {isStarting ? "Lien non encore publié" : "Lien disponible au début du live"}
           </Button>
         );
       }
@@ -313,7 +313,7 @@ function EventCard({
         ) : (
           <Button disabled className="bg-gradient-bordeaux text-primary-foreground opacity-60">
             <Clock className="mr-2 h-4 w-4" />
-            {isStarting ? "Lien en attente" : "Lien disponible au debut"}
+            {isStarting ? "Lien en attente" : "Lien disponible au début"}
           </Button>
         );
         return (
@@ -395,7 +395,7 @@ function EventCard({
             )}
             {/* Type badge */}
             <Badge className="border-0 bg-white/15 text-primary-foreground hover:bg-white/15">
-              {isVideo ? "Video" : isUnlimited ? "Live illimite" : "Live Google Meet"}
+              {isVideo ? "Vidéo" : isUnlimited ? "Live illimité" : "Live Google Meet"}
             </Badge>
             {/* Starting-soon indicator */}
             {isStarting && (
@@ -468,7 +468,7 @@ function CreateEventDialog({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Development");
+  const [category, setCategory] = useState("Développement");
   const [deliveryType, setDeliveryType] = useState<"google_meet" | "video">("google_meet");
   const [accessUrl, setAccessUrl] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -491,19 +491,19 @@ function CreateEventDialog({
     const nextErrors: FormErrors<"title" | "description" | "access_url" | "event_date" | "seats_total"> = {};
 
     if (!hasMinLength(title, 4)) {
-      nextErrors.title = "Le titre doit contenir au moins 4 caracteres";
+      nextErrors.title = "Le titre doit contenir au moins 4 caractères";
     }
     if (description.trim().length > 0 && !hasMinLength(description, 10)) {
-      nextErrors.description = "La description doit contenir au moins 10 caracteres si renseignee";
+      nextErrors.description = "La description doit contenir au moins 10 caractères si renseignée";
     }
     if (!isValidUrl(accessUrl)) {
-      nextErrors.access_url = deliveryType === "video" ? "Saisissez une URL video valide" : "Saisissez un lien Google Meet valide";
+      nextErrors.access_url = deliveryType === "video" ? "Saisissez une URL vidéo valide" : "Saisissez un lien Google Meet valide";
     }
     if (deliveryType === "google_meet" ? !isFutureDateTime(eventDate) : !isValidDateInput(eventDate)) {
       nextErrors.event_date = deliveryType === "google_meet" ? "Choisissez une date et une heure futures" : "Choisissez une date valide";
     }
     if (deliveryType === "google_meet" && !unlimitedSeats && !isPositiveInteger(seats, 1)) {
-      nextErrors.seats_total = "Le nombre de places doit etre au moins 1, ou cochez Illimite";
+      nextErrors.seats_total = "Le nombre de places doit être au moins 1, ou cochez Illimité";
     }
 
     setErrors(nextErrors);
@@ -538,7 +538,7 @@ function CreateEventDialog({
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {CATEGORIES.filter((c) => c !== "All").map((c) => (
+                {CATEGORIES.filter((c) => c !== "Tous").map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>

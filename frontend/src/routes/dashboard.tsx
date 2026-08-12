@@ -23,7 +23,7 @@ export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — Edutopia" },
-      { name: "description", content: "Your personal learning dashboard." },
+      { name: "description", content: "Votre tableau de bord d'apprentissage personnel." },
     ],
   }),
   component: DashboardPage,
@@ -66,7 +66,7 @@ function DashboardPage() {
   if (mounted && user && user.role !== "student") {
     return (
       <section className="container mx-auto grid min-h-[60vh] place-items-center px-4 py-16">
-        <p className="text-muted-foreground">Redirecting…</p>
+        <p className="text-muted-foreground">Redirection…</p>
       </section>
     );
   }

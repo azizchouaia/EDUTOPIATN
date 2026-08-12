@@ -33,8 +33,8 @@ function SubjectIndexPage() {
       <section className="container mx-auto px-4 py-12">
         <SubscriptionGate
           resourceKey="courses"
-          title="Courses unlock after subscription activation"
-          description="Activate your subscription to see the chapters in this subject."
+          title="Les cours se débloquent après activation de l'abonnement"
+          description="Activez votre abonnement pour voir les chapitres de cette matière."
         />
       </section>
     )
@@ -44,11 +44,11 @@ function SubjectIndexPage() {
     return (
       <section className="container mx-auto px-4 py-12">
         <div className="mx-auto max-w-3xl rounded-3xl border border-border bg-card p-10 text-center shadow-sm">
-          <h1 className="font-display text-3xl font-bold text-foreground">Complete your class and section first</h1>
-          <p className="mt-3 text-muted-foreground">We need your academic track before we can match this subject to your profile.</p>
+          <h1 className="font-display text-3xl font-bold text-foreground">Complétez d'abord votre classe et section</h1>
+          <p className="mt-3 text-muted-foreground">Nous avons besoin de votre filière scolaire pour associer cette matière à votre profil.</p>
           <div className="mt-6">
             <Button asChild className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90">
-              <Link to="/profile">Open profile</Link>
+              <Link to="/profile">Ouvrir le profil</Link>
             </Button>
           </div>
         </div>
@@ -61,15 +61,15 @@ function SubjectIndexPage() {
       <section className="bg-gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-16">
           <div className="flex flex-wrap items-center gap-2 text-sm text-primary-foreground/70">
-            <Link to="/courses" className="hover:text-primary-foreground">Subjects</Link>
+            <Link to="/courses" className="hover:text-primary-foreground">Matières</Link>
             <ChevronRight className="h-4 w-4" />
             <span>{data?.subject.name ?? "Subject"}</span>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             {data?.track?.title && <Badge className="bg-white/10 text-primary-foreground border-white/20">{data.track.title}</Badge>}
-            <Badge className="bg-gold text-gold-foreground border-0">{data?.chapters.length ?? 0} chapters</Badge>
+            <Badge className="bg-gold text-gold-foreground border-0">{data?.chapters.length ?? 0} chapitre{(data?.chapters.length ?? 0) !== 1 ? "s" : ""}</Badge>
           </div>
-          <h1 className="mt-6 font-display text-5xl font-bold">{data?.subject.name ?? "Loading..."}</h1>
+          <h1 className="mt-6 font-display text-5xl font-bold">{data?.subject.name ?? "Chargement..."}</h1>
           {data?.subject.description && <p className="mt-4 max-w-2xl text-primary-foreground/80">{data.subject.description}</p>}
         </div>
       </section>
@@ -78,7 +78,7 @@ function SubjectIndexPage() {
         {isLoading ? (
           <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-bordeaux" /></div>
         ) : !data || data.chapters.length === 0 ? (
-          <p className="text-center py-20 text-muted-foreground">No chapters are published for this subject yet.</p>
+          <p className="text-center py-20 text-muted-foreground">Aucun chapitre publié pour cette matière pour l'instant.</p>
         ) : (
           <div className="grid gap-5 lg:grid-cols-2">
             {data.chapters.map((chapter, index) => {

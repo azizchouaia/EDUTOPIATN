@@ -28,15 +28,47 @@ function shouldThrottleResetRequest(lastRequestedAt) {
   return Date.now() - lastRequest.getTime() < PASSWORD_RESET_RESEND_COOLDOWN_SECONDS * 1000;
 }
 
+// Role prefix codes — 3 digits + 3 letters, identifies role at a glance
+// Format: [3digits][3letters][4-random-digits]  e.g. 745ETU8392
+const ROLE_CODE = { student: '745ETU', parent: '145PRT', teacher: '654PRF', admin: '225ADM' };
+
+// Generate a unique user code: role prefix + 4 random digits
+// Retries up to 10 times in case of collision (9000 combinations per role)
+async function generateUserCode(role) {
+  const prefix = ROLE_CODE[role] || '001USR';
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const rand = String(crypto.randomInt(1000, 9999));
+    const code = `${prefix}${rand}`;
+    const [rows] = await db.query('SELECT id FROM users WHERE user_code = ?', [code]);
+    if (rows.length === 0) return code;
+  }
+  // Fallback: timestamp last 4 digits
+  return `${prefix}${String(Date.now()).slice(-4)}`;
+}
+
 // POST /api/auth/register
 async function register(req, res) {
   if (handleValidationErrors(req, res)) return;
 
-  const { first_name, last_name, age, email, password, role, college, phone } = req.body;
+  const { first_name, last_name, age, email, password, role, college, phone, student_code } = req.body;
   const academicFields = normalizeAcademicFields(req.body);
 
   const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
   if (existing.length > 0) return res.status(409).json({ message: 'Cette adresse e-mail est deja utilisee.' });
+
+  // If parent with student_code, validate the code exists before creating account
+  let linkedStudentId = null;
+  if (role === 'parent' && student_code) {
+    const code = String(student_code).trim().toUpperCase();
+    const [students] = await db.query(
+      'SELECT id FROM users WHERE user_code = ? AND role = "student" AND is_active = 1',
+      [code]
+    );
+    if (!students[0]) {
+      return res.status(422).json({ message: 'Code eleve invalide. Verifiez le code et reessayez.' });
+    }
+    linkedStudentId = students[0].id;
+  }
 
   const password_hash = await bcrypt.hash(password, 10);
   const safeRole = ['student', 'teacher', 'parent'].includes(role) ? role : 'student';
@@ -73,6 +105,22 @@ async function register(req, res) {
     ]
   );
 
+  // Generate and persist user_code immediately after INSERT
+  const userCode = await generateUserCode(safeRole);
+  await db.query('UPDATE users SET user_code = ? WHERE id = ?', [userCode, result.insertId]);
+
+  // Auto-link parent → student if a valid student_code was provided
+  if (linkedStudentId) {
+    try {
+      await db.query(
+        'INSERT IGNORE INTO parent_student_links (parent_id, student_id, relation_type) VALUES (?, ?, "parent")',
+        [result.insertId, linkedStudentId]
+      );
+    } catch (linkErr) {
+      console.error('[register] parent-child link failed:', linkErr.message);
+    }
+  }
+
   const token = jwt.sign(
     { id: result.insertId, role: safeRole },
     process.env.JWT_SECRET,
@@ -80,7 +128,7 @@ async function register(req, res) {
   );
 
   // Fire-and-forget welcome email — don't let a mailer failure block registration
-  sendWelcomeEmail({ to: email, firstName: first_name }).catch((err) => {
+  sendWelcomeEmail({ to: email, firstName: first_name, userCode, role: safeRole }).catch((err) => {
     console.error('[mailer] Welcome email failed:', err.message);
   });
 
@@ -206,10 +254,23 @@ async function resetPassword(req, res) {
 
 // GET /api/auth/me
 async function me(req, res) {
-  const [rows] = await db.query(
-    'SELECT id, first_name, last_name, age, email, phone, role, college, year_of_study, school_cycle, grade_code, section_code, avatar_url, created_at FROM users WHERE id = ?',
-    [req.user.id]
-  );
+  let rows;
+  try {
+    [rows] = await db.query(
+      'SELECT id, first_name, last_name, age, email, phone, user_code, role, college, year_of_study, school_cycle, grade_code, section_code, avatar_url, created_at FROM users WHERE id = ?',
+      [req.user.id]
+    );
+  } catch (err) {
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      // Migration 2026-08-10-user-code.sql not yet applied — fall back gracefully
+      [rows] = await db.query(
+        'SELECT id, first_name, last_name, age, email, phone, role, college, year_of_study, school_cycle, grade_code, section_code, avatar_url, created_at FROM users WHERE id = ?',
+        [req.user.id]
+      );
+    } else {
+      throw err;
+    }
+  }
   if (!rows[0]) return res.status(404).json({ message: 'Utilisateur introuvable.' });
   return res.json(rows[0]);
 }

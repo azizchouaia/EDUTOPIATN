@@ -44,6 +44,13 @@ const fileUpload = multer({
   },
 });
 
+// PDF-only memory upload for quiz extraction (15 MB max)
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, file.mimetype === 'application/pdf'),
+}).single('pdf');
+
 const subjectCreateValidators = [
   body('name').trim().isLength({ min: 2 }).withMessage('Le nom de la matiere doit contenir au moins 2 caracteres.'),
   body('slug').trim().custom((value) => {
@@ -308,7 +315,8 @@ router.get('/admin/quiz-questions',    auth, authorize('admin'), quiz.adminListQ
 router.post('/admin/quiz-questions',   auth, authorize('admin'), quiz.adminCreateQuestion);
 router.put('/admin/quiz-questions/:id', auth, authorize('admin'), quiz.adminUpdateQuestion);
 router.delete('/admin/quiz-questions/:id', auth, authorize('admin'), quiz.adminDeleteQuestion);
-router.post('/admin/quiz-generate',    auth, authorize('admin'), quiz.adminGenerateQuiz);
+router.post('/admin/quiz-generate',  auth, authorize('admin'), quiz.adminGenerateQuiz);
+router.post('/admin/quiz-from-pdf',  auth, authorize('admin'), pdfUpload, quiz.adminExtractFromPdf);
 router.get('/',                auth, requireActiveSubscription, ctrl.getAll);
 router.get('/my-enrollments',  auth, requireActiveSubscription, ctrl.myEnrollments);
 router.get('/:id/outline',  auth, authorize('teacher','admin'), ctrl.getTeacherOutline);

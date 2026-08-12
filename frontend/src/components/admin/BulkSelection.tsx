@@ -33,7 +33,7 @@ export function BulkActionBar({
   onDelete,
   onClear,
   isPending,
-  label = "selectionne(s)",
+  label = "sélectionné(s)",
   deleteLabel = "Supprimer la selection",
 }: {
   count: number
@@ -78,6 +78,6 @@ export function SelectCheckbox({ checked, onChange, ariaLabel }: { checked: bool
 }
 
 // ── Helper to build a confirm + bulk-delete handler from a list of ids ─────────
-export function confirmBulkDelete(count: number, message = `Supprimer ${count} element(s) selectionne(s) ?`) {
+export function confirmBulkDelete(count: number, message = `Supprimer ${count} élément(s) sélectionné(s) ?`) {
   return window.confirm(message)
 }

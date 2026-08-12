@@ -18,19 +18,19 @@ import type { DeliveryDetails, MarketOrder, OrderItem, PaymentMethod, Product } 
 export const Route = createFileRoute("/market")({
   head: () => ({
     meta: [
-      { title: "Market — Edutopia" },
-      { name: "description", content: "Shop curated educational products, build a cart, and finish checkout with promo codes, payment, and delivery details." },
-      { property: "og:title", content: "Market — Edutopia" },
-      { property: "og:description", content: "Curated products and a complete checkout flow." },
+      { title: "Marché — Edutopia" },
+      { name: "description", content: "Achetez des produits éducatifs, constituez votre panier et finalisez votre commande avec des codes promo, un mode de paiement et les détails de livraison." },
+      { property: "og:title", content: "Marché — Edutopia" },
+      { property: "og:description", content: "Produits sélectionnés et processus de commande complet." },
     ],
   }),
   component: MarketPage,
 });
 
 const tagLabels: Record<string, string> = {
-  bestseller: "Bestseller",
-  new: "New",
-  limited: "Limited",
+  bestseller: "Meilleure vente",
+  new: "Nouveau",
+  limited: "Limité",
   promo: "Promo",
 };
 
@@ -41,7 +41,7 @@ const DELIVERY_FEE = 8; // 8 DT frais de livraison fixes
 
 const paymentMethodLabels: Record<PaymentMethod, string> = {
   cash_on_delivery: "Paiement a la livraison",
-  card: "Card payment",         // kept for display on old orders only
+  card: "Paiement par carte",         // kept for display on old orders only
   bank_transfer: "Virement bancaire",
 };
 
@@ -384,11 +384,11 @@ function MarketPage() {
     <>
       <section className="bg-gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-20 text-center">
-          <span className="font-semibold text-xs uppercase tracking-[0.3em] text-gold">Shop</span>
-          <h1 className="mt-3 font-display text-5xl font-bold md:text-6xl">The Edutopia Market</h1>
+          <span className="font-semibold text-xs uppercase tracking-[0.3em] text-gold">Boutique</span>
+          <h1 className="mt-3 font-display text-5xl font-bold md:text-6xl">Le Marché Edutopia</h1>
           <div className="gold-divider mx-auto my-6" />
           <p className="mx-auto max-w-2xl text-primary-foreground/80">
-            Build your cart, apply promo codes, choose how you want to pay, and add your delivery details before confirming the order.
+            Constituez votre panier, appliquez des codes promo, choisissez votre mode de paiement et saisissez vos informations de livraison avant de confirmer la commande.
           </p>
         </div>
       </section>
@@ -400,11 +400,11 @@ function MarketPage() {
               <Tag className="h-6 w-6" />
             </span>
             <div>
-              <p className="font-display text-lg font-semibold text-bordeaux">Have a promo code?</p>
+              <p className="font-display text-lg font-semibold text-bordeaux">Vous avez un code promo ?</p>
               <p className="text-sm text-muted-foreground">
                 {promoResult
                   ? `Applied: ${promoResult.discount_percent}% off${promoResult.product_id ? " on one matching product" : " on the whole cart"}`
-                  : "Apply it before checkout to save instantly on your basket."}
+                  : "Appliquez-le avant de valider pour économiser immédiatement."}
               </p>
             </div>
           </div>
@@ -421,7 +421,7 @@ function MarketPage() {
               disabled={!promoCode || promoMutation.isPending}
               className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90"
             >
-              {promoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+              {promoMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Appliquer"}
             </Button>
           </div>
         </div>
@@ -432,11 +432,11 @@ function MarketPage() {
           <div>
             <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <h2 className="font-display text-3xl font-bold text-foreground">Featured Products</h2>
-                <p className="mt-2 text-sm text-muted-foreground">Collect products in the cart first, then checkout once with delivery and payment details.</p>
+                <h2 className="font-display text-3xl font-bold text-foreground">Produits à la une</h2>
+                <p className="mt-2 text-sm text-muted-foreground">Ajoutez des produits au panier, puis validez avec les informations de livraison et de paiement.</p>
               </div>
               <Badge className={`w-fit bg-bordeaux/10 px-3 py-1 text-bordeaux hover:bg-bordeaux/10 transition-all${badgePulse ? " badge-pulse" : ""}`}>
-                {cartCount} items in cart
+                {cartCount} article{cartCount > 1 ? "s" : ""} dans le panier
               </Badge>
             </div>
 
@@ -489,7 +489,7 @@ function MarketPage() {
                         <div>
                           <h3 className="font-display text-2xl font-semibold text-foreground">{product.name}</h3>
                           <p className="mt-2 min-h-[40px] text-sm text-muted-foreground">
-                            {product.description ?? "Curated learning product from the Edutopia marketplace."}
+                            {product.description ?? "Produit éducatif sélectionné par Edutopia."}
                           </p>
                         </div>
 
@@ -506,14 +506,14 @@ function MarketPage() {
                             onClick={() => addToCart(product.id)}
                             disabled={product.stock === 0}
                           >
-                            <ShoppingCart className="mr-2 h-4 w-4" /> Add to cart
+                            <ShoppingCart className="mr-2 h-4 w-4" /> Ajouter au panier
                           </Button>
                         </div>
 
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>{product.category ?? "General"}</span>
                           <span className={product.stock === 0 ? "font-semibold text-destructive" : product.stock <= 5 ? "font-semibold text-amber-600 dark:text-amber-400" : undefined}>
-                            {product.stock > 0 ? `${product.stock} left in stock` : "Out of stock"}
+                            {product.stock > 0 ? `${product.stock} en stock` : "Rupture de stock"}
                           </span>
                         </div>
                       </div>
@@ -527,13 +527,13 @@ function MarketPage() {
           <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
             <Card className="border-border/70 bg-card/90 shadow-elegant">
               <CardHeader>
-                <CardTitle className="font-display text-2xl text-bordeaux">Your cart</CardTitle>
-                <CardDescription>Collect the products you want before finishing the order.</CardDescription>
+                <CardTitle className="font-display text-2xl text-bordeaux">Votre panier</CardTitle>
+                <CardDescription>Ajoutez les produits souhaités avant de finaliser la commande.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {cartLines.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">
-                    Your cart is empty. Add products from the shop to start checkout.
+                    Votre panier est vide. Ajoutez des produits pour commencer.
                   </div>
                 ) : (
                   cartLines.map((line) => (
@@ -547,7 +547,7 @@ function MarketPage() {
                           )}
                           <div>
                             <div className="font-medium text-foreground">{line.product.name}</div>
-                            <div className="text-xs text-muted-foreground">{formatPrice(Number(line.product.price))} each</div>
+                            <div className="text-xs text-muted-foreground">{formatPrice(Number(line.product.price))} l'unité</div>
                           </div>
                         </div>
                         <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => removeFromCart(line.product.id)}>
@@ -574,12 +574,12 @@ function MarketPage() {
 
             <Card className="border-border/70 bg-card/90 shadow-elegant">
               <CardHeader>
-                <CardTitle className="font-display text-2xl text-bordeaux">Checkout</CardTitle>
-                <CardDescription>Choose the payment method and fill in the delivery coordinates.</CardDescription>
+                <CardTitle className="font-display text-2xl text-bordeaux">Commande</CardTitle>
+                <CardDescription>Choisissez le mode de paiement et renseignez les coordonnées de livraison.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="checkout-payment-method">Payment method</Label>
+                  <Label htmlFor="checkout-payment-method">Mode de paiement</Label>
                   <select
                     id="checkout-payment-method"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -593,12 +593,12 @@ function MarketPage() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="delivery-full-name">Full name</Label>
-                    <Input id="delivery-full-name" value={delivery.full_name} onChange={(event) => setDeliveryField("full_name", event.target.value)} placeholder="Who receives the order?" className={deliveryErrors.full_name ? "border-destructive" : undefined} />
+                    <Label htmlFor="delivery-full-name">Nom complet</Label>
+                    <Input id="delivery-full-name" value={delivery.full_name} onChange={(event) => setDeliveryField("full_name", event.target.value)} placeholder="Qui reçoit la commande ?" className={deliveryErrors.full_name ? "border-destructive" : undefined} />
                     {deliveryErrors.full_name ? <p className="text-xs text-destructive">{deliveryErrors.full_name}</p> : null}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="delivery-phone">Phone</Label>
+                    <Label htmlFor="delivery-phone">Téléphone</Label>
                     <Input id="delivery-phone" value={delivery.phone} onChange={(event) => setDeliveryField("phone", event.target.value)} placeholder="+216 ..." className={deliveryErrors.phone ? "border-destructive" : undefined} />
                     {deliveryErrors.phone ? <p className="text-xs text-destructive">{deliveryErrors.phone}</p> : null}
                   </div>
@@ -638,18 +638,18 @@ function MarketPage() {
                     {deliveryErrors.city ? <p className="text-xs text-destructive">{deliveryErrors.city}</p> : null}
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="delivery-address">Address</Label>
-                    <Input id="delivery-address" value={delivery.address} onChange={(event) => setDeliveryField("address", event.target.value)} placeholder="Street, building, apartment" className={deliveryErrors.address ? "border-destructive" : undefined} />
+                    <Label htmlFor="delivery-address">Adresse</Label>
+                    <Input id="delivery-address" value={delivery.address} onChange={(event) => setDeliveryField("address", event.target.value)} placeholder="Rue, bâtiment, appartement" className={deliveryErrors.address ? "border-destructive" : undefined} />
                     {deliveryErrors.address ? <p className="text-xs text-destructive">{deliveryErrors.address}</p> : null}
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="delivery-postal-code">Postal code</Label>
-                    <Input id="delivery-postal-code" value={delivery.postal_code} onChange={(event) => setDeliveryField("postal_code", event.target.value)} placeholder="Optional" className={deliveryErrors.postal_code ? "border-destructive" : undefined} />
+                    <Label htmlFor="delivery-postal-code">Code postal</Label>
+                    <Input id="delivery-postal-code" value={delivery.postal_code} onChange={(event) => setDeliveryField("postal_code", event.target.value)} placeholder="Optionnel" className={deliveryErrors.postal_code ? "border-destructive" : undefined} />
                     {deliveryErrors.postal_code ? <p className="text-xs text-destructive">{deliveryErrors.postal_code}</p> : null}
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="delivery-notes">Delivery notes</Label>
-                    <Textarea id="delivery-notes" value={delivery.notes} onChange={(event) => setDeliveryField("notes", event.target.value)} placeholder="Landmark, floor, or special instructions" />
+                    <Label htmlFor="delivery-notes">Instructions de livraison</Label>
+                    <Textarea id="delivery-notes" value={delivery.notes} onChange={(event) => setDeliveryField("notes", event.target.value)} placeholder="Point de repère, étage ou instructions spéciales" />
                   </div>
                 </div>
 
@@ -675,11 +675,11 @@ function MarketPage() {
                 </div>
 
                 <Button type="button" className="w-full bg-gradient-bordeaux text-primary-foreground hover:opacity-90" disabled={orderMutation.isPending || cartLines.length === 0} onClick={placeOrder}>
-                  {orderMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming order...</> : authed ? <><Truck className="mr-2 h-4 w-4" /> Confirm order</> : "Sign in to checkout"}
+                  {orderMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirmation en cours...</> : authed ? <><Truck className="mr-2 h-4 w-4" /> Confirmer la commande</> : "Se connecter pour commander"}
                 </Button>
 
                 {!authed ? (
-                  <p className="text-center text-xs text-muted-foreground">You need to <a href="/login" className="font-medium text-bordeaux underline-offset-4 hover:underline">sign in</a> to place an order.</p>
+                  <p className="text-center text-xs text-muted-foreground">Vous devez <a href="/login" className="font-medium text-bordeaux underline-offset-4 hover:underline">vous connecter</a> pour passer une commande.</p>
                 ) : promoResult?.product_id && !matchingPromoProduct ? (
                   <p className="text-xs text-amber-700 dark:text-amber-400">This promo only applies when its matching product is in the cart.</p>
                 ) : null}
@@ -690,7 +690,7 @@ function MarketPage() {
               <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-950/30 shadow-elegant">
                 <CardHeader>
                   <CardTitle className="font-display text-xl text-emerald-700 dark:text-emerald-400">Order #{lastOrderSummary.order_id} confirmed</CardTitle>
-                  <CardDescription className="text-emerald-600 dark:text-emerald-500">Your order has been placed. We will contact you shortly.</CardDescription>
+                  <CardDescription className="text-emerald-600 dark:text-emerald-500">Votre commande a été enregistrée. Nous vous contacterons rapidement.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   {lastOrderSummary.items.map((item) => {
@@ -715,7 +715,7 @@ function MarketPage() {
                     <div className="flex justify-between text-muted-foreground"><span>Livraison</span><span>{formatPrice(lastOrderSummary.delivery_fee ?? DELIVERY_FEE)}</span></div>
                     <div className="flex justify-between font-bold text-emerald-700 dark:text-emerald-400"><span>Total</span><span>{formatPrice(lastOrderSummary.total)}</span></div>
                   </div>
-                  <Button type="button" variant="ghost" size="sm" className="w-full text-emerald-600 dark:text-emerald-500" onClick={() => setLastOrderSummary(null)}>Dismiss</Button>
+                  <Button type="button" variant="ghost" size="sm" className="w-full text-emerald-600 dark:text-emerald-500" onClick={() => setLastOrderSummary(null)}>Fermer</Button>
                 </CardContent>
               </Card>
             ) : null}
@@ -723,8 +723,8 @@ function MarketPage() {
             <Card className="border-border/70 bg-card/90 shadow-elegant">
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
-                  <CardTitle className="font-display text-2xl text-bordeaux">Recent orders</CardTitle>
-                  <CardDescription>Your latest market requests and delivery details.</CardDescription>
+                  <CardTitle className="font-display text-2xl text-bordeaux">Commandes récentes</CardTitle>
+                  <CardDescription>Vos dernières commandes et informations de livraison.</CardDescription>
                 </div>
                 {orders.filter((o) => !hiddenOrderIds.has(o.id)).length > 4 && (
                   <button
@@ -738,7 +738,7 @@ function MarketPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {orders.filter((o) => !hiddenOrderIds.has(o.id)).length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border/80 px-4 py-6 text-sm text-muted-foreground">No orders yet.</div>
+                  <div className="rounded-2xl border border-dashed border-border/80 px-4 py-6 text-sm text-muted-foreground">Aucune commande pour l'instant.</div>
                 ) : (
                   (showAllOrders
                     ? orders.filter((o) => !hiddenOrderIds.has(o.id))
@@ -780,7 +780,7 @@ function MarketPage() {
                         </div>
                       </div>
                       <div className="mt-2 text-muted-foreground">{formatPrice(Number(order.total_amount))} via {paymentMethodLabels[order.payment_method]}</div>
-                      <div className="mt-1 text-muted-foreground">{order.delivery_full_name ?? "Delivery pending"} • {order.delivery_city ?? "No city"}</div>
+                      <div className="mt-1 text-muted-foreground">{order.delivery_full_name ?? "Livraison en attente"} • {order.delivery_city ?? "Ville non renseignée"}</div>
                       {order.items && order.items.length > 0 ? (
                         <div className="mt-3 space-y-1 border-t border-border/50 pt-2">
                           {order.items.map((item: OrderItem) => (

@@ -160,11 +160,11 @@ const INITIAL_EVENT_FORM: EventForm = {
 }
 
 const RESOURCE_OPTIONS: Array<{ value: ResourceType; label: string }> = [
-  { value: "pdf_lesson", label: "PDF lesson" },
-  { value: "video_lesson", label: "Video lesson" },
-  { value: "exercise_sheet", label: "Exercise sheet" },
-  { value: "correction_sheet", label: "Correction sheet" },
-  { value: "extra_resource", label: "Extra resource" },
+  { value: "pdf_lesson", label: "Cours PDF" },
+  { value: "video_lesson", label: "Cours vidéo" },
+  { value: "exercise_sheet", label: "Fiche d'exercices" },
+  { value: "correction_sheet", label: "Fiche de correction" },
+  { value: "extra_resource", label: "Ressource supplémentaire" },
 ]
 
 export const Route = createFileRoute("/teacher")({
@@ -175,7 +175,7 @@ export const Route = createFileRoute("/teacher")({
   },
   head: () => ({
     meta: [
-      { title: "Teacher Workspace - Edutopia" },
+      { title: "Espace Enseignant - Edutopia" },
       { name: "description", content: "Create, edit, and publish your courses from a dedicated teacher workspace." },
     ],
   }),
@@ -563,20 +563,20 @@ function TeacherWorkspacePage() {
     const studentCount = studentRoster?.stats.total_students ?? 0
 
     return [
-      { label: "Total courses", value: String(courses.length) },
-      { label: "Published", value: String(published) },
-      { label: "Drafts", value: String(drafts) },
-      { label: "Chapters", value: String(chapterCount) },
-      { label: "Students", value: String(studentCount) },
+      { label: "Total cours", value: String(courses.length) },
+      { label: "Publiés", value: String(published) },
+      { label: "Brouillons", value: String(drafts) },
+      { label: "Chapitres", value: String(chapterCount) },
+      { label: "Étudiants", value: String(studentCount) },
     ]
   }, [courses, outline, studentRoster])
 
   if (!mounted || !user) {
-    return <LoadingState message="Loading teacher workspace..." />
+    return <LoadingState message="Chargement de l'espace enseignant..." />
   }
 
   if (user.role !== "teacher") {
-    return <LoadingState message="Redirecting..." />
+    return <LoadingState message="Redirection..." />
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -588,16 +588,16 @@ function TeacherWorkspacePage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-gold">
-                <UserRound className="h-3.5 w-3.5" /> Teacher workspace
+                <UserRound className="h-3.5 w-3.5" /> Espace enseignant
               </div>
-              <h1 className="font-display text-4xl font-bold md:text-5xl">Manage your courses without going through admin</h1>
+              <h1 className="font-display text-4xl font-bold md:text-5xl">Gérez vos cours sans passer par l'admin</h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-primary-foreground/80 md:text-base">
-                Create draft courses, refine the content, and publish only when the course is ready for students.
+                Créez des cours en brouillon, affinez le contenu et publiez uniquement quand le cours est prêt pour les étudiants.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild className="bg-white text-bordeaux hover:bg-white/90">
-                <Link to="/reclamations">Teacher support</Link>
+                <Link to="/reclamations">Support enseignant</Link>
               </Button>
             </div>
           </div>
@@ -605,8 +605,8 @@ function TeacherWorkspacePage() {
 
         <Card className="border-border/70 bg-card">
           <CardHeader>
-            <CardTitle className="font-display text-2xl text-bordeaux">Teacher profile</CardTitle>
-            <CardDescription>Visible identity already ready to support your courses and sessions.</CardDescription>
+            <CardTitle className="font-display text-2xl text-bordeaux">Profil enseignant</CardTitle>
+            <CardDescription>Identité visible et prête pour soutenir vos cours et sessions.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
@@ -923,11 +923,11 @@ function TeacherWorkspacePage() {
               <div className="flex flex-wrap gap-3 pt-2">
                 <Button className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90" onClick={() => handleSubmit(form, editingId, setErrors, createMutation.mutate, updateMutation.mutate)} disabled={isPending}>
                   {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                  {editingId ? "Save changes" : "Create draft"}
+                  {editingId ? "Enregistrer les modifications" : "Créer un brouillon"}
                 </Button>
                 {editingId ? (
                   <Button variant="outline" className="border-bordeaux text-bordeaux" onClick={() => resetForm(setForm, setEditingId, setErrors)}>
-                    Cancel edit
+                    Annuler la modification
                   </Button>
                 ) : null}
               </div>
@@ -962,10 +962,10 @@ function TeacherWorkspacePage() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="font-display text-xl font-semibold text-foreground">{course.title}</div>
-                          <div className="mt-1 text-sm text-muted-foreground">{course.category ?? "No category"} · {Number(course.duration_hours ?? 0)} h · {Number(course.lessons_count ?? 0)} lessons</div>
+                          <div className="mt-1 text-sm text-muted-foreground">{course.category ?? "Aucune catégorie"} · {Number(course.duration_hours ?? 0)} h · {Number(course.lessons_count ?? 0)} lessons</div>
                         </div>
                         <Badge className={course.is_published ? "border border-emerald-200 bg-emerald-100 text-emerald-800" : "border border-amber-200 bg-amber-100 text-amber-800"}>
-                          {course.is_published ? "Published" : "Draft"}
+                          {course.is_published ? "Publié" : "Brouillon"}
                         </Badge>
                       </div>
                       <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{course.description ?? "No description yet."}</p>
@@ -975,10 +975,10 @@ function TeacherWorkspacePage() {
                       </div>
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => startEdit(course, setForm, setEditingId, setErrors)}>
-                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                          <Pencil className="mr-2 h-4 w-4" /> Modifier
                         </Button>
                         <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => setSelectedCourseId(course.id)}>
-                          <Layers3 className="mr-2 h-4 w-4" /> Content
+                          <Layers3 className="mr-2 h-4 w-4" /> Contenu
                         </Button>
                         <Button
                           size="sm"
@@ -987,10 +987,10 @@ function TeacherWorkspacePage() {
                           onClick={() => updateMutation.mutate({ id: course.id, data: { is_published: course.is_published ? 0 : 1 } })}
                         >
                           {course.is_published ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                          {course.is_published ? "Unpublish" : "Publish"}
+                          {course.is_published ? "Dépublier" : "Publier"}
                         </Button>
                         <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/5" onClick={() => deleteMutation.mutate(course.id)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          <Trash2 className="mr-2 h-4 w-4" /> Supprimer
                         </Button>
                       </div>
                     </CardContent>
@@ -1029,13 +1029,13 @@ function TeacherWorkspacePage() {
                               {chapterErrors.description ? <p className="text-xs text-destructive">{chapterErrors.description}</p> : null}
                             </div>
                             <FormInput label="Display order" type="number" value={chapterForm.display_order} error={chapterErrors.display_order} onChange={(value) => setChapterForm((prev) => ({ ...prev, display_order: value }))} />
-                            <ToggleField label="Published" checked={chapterForm.is_published} onChange={(checked) => setChapterForm((prev) => ({ ...prev, is_published: checked }))} />
+                            <ToggleField label="Publié" checked={chapterForm.is_published} onChange={(checked) => setChapterForm((prev) => ({ ...prev, is_published: checked }))} />
                             <div className="flex flex-wrap gap-3 pt-2">
                               <Button className="bg-gradient-bordeaux text-primary-foreground hover:opacity-90" disabled={createChapterMutation.isPending || updateChapterMutation.isPending} onClick={() => handleChapterSubmit(chapterForm, editingChapterId, setChapterErrors, createChapterMutation.mutate, updateChapterMutation.mutate)}>
                                 {createChapterMutation.isPending || updateChapterMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                                 {editingChapterId ? "Save chapter" : "Add chapter"}
                               </Button>
-                              {editingChapterId ? <Button variant="outline" className="border-bordeaux text-bordeaux" onClick={() => resetChapterForm(setChapterForm, setEditingChapterId, setChapterErrors)}>Cancel</Button> : null}
+                              {editingChapterId ? <Button variant="outline" className="border-bordeaux text-bordeaux" onClick={() => resetChapterForm(setChapterForm, setEditingChapterId, setChapterErrors)}>Annuler</Button> : null}
                             </div>
                           </CardContent>
                         </Card>
@@ -1195,19 +1195,19 @@ function TeacherWorkspacePage() {
                                     <div className="font-display text-xl font-semibold text-foreground">{chapter.title}</div>
                                     <div className="mt-1 text-sm text-muted-foreground">Slug {chapter.slug} · Order {chapter.display_order}</div>
                                   </div>
-                                  <Badge className={chapter.is_published ? "border border-emerald-200 bg-emerald-100 text-emerald-800" : "border border-amber-200 bg-amber-100 text-amber-800"}>{chapter.is_published ? "Published" : "Draft"}</Badge>
+                                  <Badge className={chapter.is_published ? "border border-emerald-200 bg-emerald-100 text-emerald-800" : "border border-amber-200 bg-amber-100 text-amber-800"}>{chapter.is_published ? "Publié" : "Brouillon"}</Badge>
                                 </div>
                                 <p className="mt-3 text-sm text-muted-foreground">{chapter.description ?? "No chapter description yet."}</p>
                                 <div className="mt-4 flex flex-wrap gap-2">
                                   <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => startChapterEdit(chapter, setChapterForm, setEditingChapterId, setChapterErrors)}>
-                                    <Pencil className="mr-2 h-4 w-4" /> Edit chapter
+                                    <Pencil className="mr-2 h-4 w-4" /> Modifier le chapitre
                                   </Button>
                                   <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateChapterMutation.mutate({ id: chapter.id, data: { is_published: chapter.is_published ? 0 : 1 } })}>
                                     {chapter.is_published ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                                    {chapter.is_published ? "Unpublish" : "Publish"}
+                                    {chapter.is_published ? "Dépublier" : "Publier"}
                                   </Button>
                                   <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/5" onClick={() => deleteChapterMutation.mutate(chapter.id)}>
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete chapter
+                                    <Trash2 className="mr-2 h-4 w-4" /> Supprimer le chapitre
                                   </Button>
                                 </div>
 
@@ -1219,7 +1219,7 @@ function TeacherWorkspacePage() {
                                           <div className="font-medium text-foreground">{resource.title}</div>
                                           <div className="mt-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">{resource.resource_type.replaceAll("_", " ")}</div>
                                         </div>
-                                        <Badge className={resource.is_published ? "border border-emerald-200 bg-emerald-100 text-emerald-800" : "border border-amber-200 bg-amber-100 text-amber-800"}>{resource.is_published ? "Published" : "Draft"}</Badge>
+                                        <Badge className={resource.is_published ? "border border-emerald-200 bg-emerald-100 text-emerald-800" : "border border-amber-200 bg-amber-100 text-amber-800"}>{resource.is_published ? "Publié" : "Brouillon"}</Badge>
                                       </div>
                                       <p className="mt-2 text-sm text-muted-foreground">{resource.description ?? "No resource description yet."}</p>
                                       <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
@@ -1230,14 +1230,14 @@ function TeacherWorkspacePage() {
                                       </div>
                                       <div className="mt-4 flex flex-wrap gap-2">
                                         <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => startResourceEdit(resource, setResourceForm, setEditingResourceId, setResourceErrors)}>
-                                          <Pencil className="mr-2 h-4 w-4" /> Edit resource
+                                          <Pencil className="mr-2 h-4 w-4" /> Modifier la ressource
                                         </Button>
                                         <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateResourceMutation.mutate({ id: resource.id, data: { is_published: resource.is_published ? 0 : 1 } })}>
                                           {resource.is_published ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                                          {resource.is_published ? "Unpublish" : "Publish"}
+                                          {resource.is_published ? "Dépublier" : "Publier"}
                                         </Button>
                                         <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/5" onClick={() => deleteResourceMutation.mutate(resource.id)}>
-                                          <Trash2 className="mr-2 h-4 w-4" /> Delete resource
+                                          <Trash2 className="mr-2 h-4 w-4" /> Supprimer la ressource
                                         </Button>
                                       </div>
                                     </div>
@@ -1266,7 +1266,7 @@ function TeacherWorkspacePage() {
             {selectedCourseId ? (
               <Card className="border-border/70 bg-card">
                 <CardHeader>
-                  <CardTitle className="font-display text-2xl text-foreground">Students & analytics</CardTitle>
+                  <CardTitle className="font-display text-2xl text-foreground">Étudiants & analytiques</CardTitle>
                   <CardDescription>
                     {studentRoster?.course.title ?? outline?.course.title ?? "Selected course"} · Track enrollments, completion, and average progress.
                   </CardDescription>
@@ -1320,7 +1320,7 @@ function TeacherWorkspacePage() {
                                 </div>
                                 <div className="min-w-[220px] md:max-w-[260px]">
                                   <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>Progress</span>
+                                    <span>Progression</span>
                                     <span>{student.progress}%</span>
                                   </div>
                                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -1365,9 +1365,9 @@ function TeacherWorkspacePage() {
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
-                          <Label>Class</Label>
+                          <Label>Classe</Label>
                           <select className={`flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ${eventErrors.grade_code ? "border-destructive" : "border-input"}`} value={eventForm.grade_code} onChange={(event) => setEventForm((prev) => ({ ...prev, grade_code: event.target.value }))}>
-                            <option value="">Select class</option>
+                            <option value="">Sélectionner une classe</option>
                             {GRADE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </select>
                           {eventErrors.grade_code ? <p className="text-xs text-destructive">{eventErrors.grade_code}</p> : null}
@@ -1395,7 +1395,7 @@ function TeacherWorkspacePage() {
                         Session category preview: <span className="font-medium text-foreground">{buildEventCategory(eventForm, courses) || "Choose class and course"}</span>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Session type</Label>
+                        <Label>Type de session</Label>
                         <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={eventForm.delivery_type} onChange={(event) => setEventForm((prev) => ({ ...prev, delivery_type: event.target.value as Event["delivery_type"] }))}>
                           <option value="google_meet">Google Meet live</option>
                           <option value="video">Free video</option>
@@ -1409,7 +1409,7 @@ function TeacherWorkspacePage() {
                           {createEventMutation.isPending || updateEventMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                           {editingEventId ? "Save session" : "Create session"}
                         </Button>
-                        {editingEventId ? <Button variant="outline" className="border-bordeaux text-bordeaux" onClick={() => resetEventForm(setEventForm, setEditingEventId, setEventErrors)}>Cancel</Button> : null}
+                        {editingEventId ? <Button variant="outline" className="border-bordeaux text-bordeaux" onClick={() => resetEventForm(setEventForm, setEditingEventId, setEventErrors)}>Annuler</Button> : null}
                       </div>
                     </CardContent>
                   </Card>
@@ -1439,25 +1439,25 @@ function TeacherWorkspacePage() {
                               <div className="flex items-start justify-between gap-3">
                                 <div>
                                   <div className="font-display text-xl font-semibold text-foreground">{event.title}</div>
-                                  <div className="mt-1 text-sm text-muted-foreground">{event.category ?? "No category"} · {formatEventDate(event.event_date)}</div>
+                                  <div className="mt-1 text-sm text-muted-foreground">{event.category ?? "Aucune catégorie"} · {formatEventDate(event.event_date)}</div>
                                 </div>
-                                <Badge className={event.is_cancelled ? "border border-amber-200 bg-amber-100 text-amber-800" : "border border-emerald-200 bg-emerald-100 text-emerald-800"}>{event.is_cancelled ? "Cancelled" : "Active"}</Badge>
+                                <Badge className={event.is_cancelled ? "border border-amber-200 bg-amber-100 text-amber-800" : "border border-emerald-200 bg-emerald-100 text-emerald-800"}>{event.is_cancelled ? "Annulé" : "Actif"}</Badge>
                               </div>
                               <div className="mt-3 flex flex-wrap gap-2 text-sm text-muted-foreground">
                                 <span>{event.delivery_type === "video" ? "Free video" : `Google Meet · ${event.seats_taken}/${event.seats_total} seats`}</span>
                                 {event.access_url ? <a href={event.access_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-bordeaux hover:underline"><PlayCircle className="h-4 w-4" /> Open link</a> : null}
                               </div>
-                              <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{event.description ?? "No session description yet."}</p>
+                              <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{event.description ?? "Aucune description pour cette session."}</p>
                               <div className="mt-5 flex flex-wrap gap-2">
                                 <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => startEventEdit(event, courses, setEventForm, setEditingEventId, setEventErrors)}>
-                                  <Pencil className="mr-2 h-4 w-4" /> Edit
+                                  <Pencil className="mr-2 h-4 w-4" /> Modifier
                                 </Button>
                                 <Button size="sm" variant="outline" className="border-bordeaux text-bordeaux" onClick={() => updateEventMutation.mutate({ id: event.id, data: { is_cancelled: event.is_cancelled ? 0 : 1 } })}>
                                   {event.is_cancelled ? <Eye className="mr-2 h-4 w-4" /> : <EyeOff className="mr-2 h-4 w-4" />}
-                                  {event.is_cancelled ? "Restore" : "Cancel"}
+                                  {event.is_cancelled ? "Restaurer" : "Annuler"}
                                 </Button>
                                 <Button size="sm" variant="outline" className="border-destructive text-destructive hover:bg-destructive/5" onClick={() => deleteEventMutation.mutate(event.id)}>
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                  <Trash2 className="mr-2 h-4 w-4" /> Supprimer
                                 </Button>
                               </div>
                             </CardContent>

@@ -27,7 +27,7 @@ function NotFoundComponent() {
               to="/"
               className="inline-flex items-center justify-center rounded-md bg-gradient-bordeaux px-6 py-3 text-sm font-medium text-primary-foreground shadow-elegant transition-opacity hover:opacity-90"
             >
-              Back to home
+              Retour à l'accueil
             </Link>
           </div>
         </div>
@@ -42,11 +42,11 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Edutopia — Premium e-Education Platform" },
-      { name: "description", content: "Edutopia: refined online courses, video & PDF lessons, tests with corrections, support, and a curated marketplace." },
+      { title: "Edutopia — Plateforme e-Éducation Premium" },
+      { name: "description", content: "Edutopia : cours en ligne soignés, leçons vidéo & PDF, tests avec corrections, support, et une boutique sélectionnée." },
       { name: "author", content: "Edutopia" },
-      { property: "og:title", content: "Edutopia — Premium e-Education Platform" },
-      { property: "og:description", content: "Refined online courses, tests, marketplace and subscriptions." },
+      { property: "og:title", content: "Edutopia — Plateforme e-Éducation Premium" },
+      { property: "og:description", content: "Cours en ligne soignés, tests, boutique et abonnements." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

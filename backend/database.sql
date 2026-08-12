@@ -26,17 +26,19 @@ CREATE TABLE IF NOT EXISTS users (
   last_name     VARCHAR(80)  NOT NULL,
   age           TINYINT UNSIGNED,
   email         VARCHAR(150) NOT NULL UNIQUE,
+  phone         VARCHAR(20)  NULL DEFAULT NULL,
   password_hash VARCHAR(255) NOT NULL,
   password_reset_code_hash VARCHAR(255),
   password_reset_expires_at DATETIME,
   password_reset_requested_at DATETIME,
-  role          ENUM('admin','teacher','student','parent') NOT NULL DEFAULT 'student',
+  role          ENUM('admin','teacher','student','parent','commercial') NOT NULL DEFAULT 'student',
   college       VARCHAR(200)                              COMMENT 'Name of the school / university',
   year_of_study VARCHAR(60)                               COMMENT 'Tunisian system: 7ème / 1ère secondaire / Licence 1 …',
   school_cycle  ENUM('college','lycee')                   COMMENT 'Structured school cycle used for curriculum filtering',
   grade_code    VARCHAR(20)                               COMMENT 'Structured class code: 7eme / 1ere / bac ...',
   section_code  VARCHAR(20)                               COMMENT 'Section for lycee tracks: math / science / info ...',
   avatar_url    VARCHAR(500),
+  user_code     VARCHAR(20)  NULL DEFAULT NULL UNIQUE,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -155,10 +157,12 @@ CREATE TABLE IF NOT EXISTS chapters (
   description      TEXT,
   display_order    INT NOT NULL DEFAULT 0,
   is_published     TINYINT(1) NOT NULL DEFAULT 1,
+  created_by       INT UNSIGNED NULL DEFAULT NULL,
   created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_track_subject_chapter (track_subject_id, slug),
-  CONSTRAINT fk_chapter_track_subject FOREIGN KEY (track_subject_id) REFERENCES track_subjects(id) ON DELETE CASCADE
+  CONSTRAINT fk_chapter_track_subject FOREIGN KEY (track_subject_id) REFERENCES track_subjects(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ch_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS chapter_resources (
@@ -255,6 +259,7 @@ CREATE TABLE IF NOT EXISTS events (
   seats_total  SMALLINT UNSIGNED NOT NULL DEFAULT 50,
   seats_taken  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   is_cancelled TINYINT(1)     NOT NULL DEFAULT 0,
+  is_free      TINYINT(1)     NOT NULL DEFAULT 1,
   created_at   DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_events_host FOREIGN KEY (host_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -348,7 +353,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   billing_cycle ENUM('1_month','3_months','1_year') NOT NULL DEFAULT '1_month',
   price_paid DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   payment_method ENUM('online','bank_transfer') NOT NULL DEFAULT 'online',
-  status     ENUM('pending_receipt','pending_approval','pending_code','active','expired','cancelled')  NOT NULL DEFAULT 'pending_code',
+  konnect_payment_ref VARCHAR(100) DEFAULT NULL,
+  status     ENUM('pending_payment','pending_receipt','pending_approval','pending_code','active','expired','cancelled') NOT NULL DEFAULT 'pending_code',
   bank_receipt_path VARCHAR(500) DEFAULT NULL,
   bank_receipt_original_name VARCHAR(255) DEFAULT NULL,
   receipt_uploaded_at DATETIME DEFAULT NULL,
@@ -495,6 +501,150 @@ CREATE TABLE IF NOT EXISTS reclamations (
   updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_rec_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- 14. TEACHER SUBJECT ASSIGNMENTS
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS teacher_subject_assignments (
+  id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  teacher_id       INT UNSIGNED NOT NULL,
+  track_subject_id INT UNSIGNED NOT NULL,
+  assigned_by      INT UNSIGNED NOT NULL,
+  assigned_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_teacher_subject (teacher_id),
+  CONSTRAINT fk_tsa_teacher FOREIGN KEY (teacher_id)       REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_tsa_ts      FOREIGN KEY (track_subject_id) REFERENCES track_subjects(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tsa_admin   FOREIGN KEY (assigned_by)      REFERENCES users(id)          ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- 15. KHLAYEL AI
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ai_conversations (
+  id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT UNSIGNED NOT NULL,
+  mode       ENUM('tutor','corrector','resume','exercice') NOT NULL DEFAULT 'tutor',
+  title      VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_aicon_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT UNSIGNED NOT NULL,
+  role            ENUM('user','assistant') NOT NULL,
+  content         TEXT NOT NULL,
+  graph_spec      JSON DEFAULT NULL,
+  feedback        ENUM('up','down') NULL DEFAULT NULL,
+  model           VARCHAR(64) NULL DEFAULT NULL,
+  prompt_tokens   INT NULL DEFAULT NULL,
+  completion_tokens INT NULL DEFAULT NULL,
+  hint_level      TINYINT UNSIGNED DEFAULT NULL,
+  tokens_used     INT UNSIGNED DEFAULT NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_aimsg_conv FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ai_hint_state (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id       INT UNSIGNED NOT NULL,
+  exercise_key  VARCHAR(64) NOT NULL,
+  sub_question  VARCHAR(20) NOT NULL DEFAULT 'main',
+  current_level TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  attempts      TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  reached_l5    TINYINT(1) NOT NULL DEFAULT 0,
+  started_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_hint_state (user_id, exercise_key, sub_question),
+  CONSTRAINT fk_hint_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS curriculum (
+  id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  level         ENUM('1s','2sc','2t','2eg','2l','3m','3sc','3t','3eg','3info','4m','4sc','4t','4eg','4info') NOT NULL,
+  chapter_order TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  chapter_name  VARCHAR(255) NOT NULL,
+  notions       JSON NOT NULL,
+  prerequisites JSON DEFAULT NULL,
+  hors_programme JSON DEFAULT NULL,
+  trimester     TINYINT UNSIGNED DEFAULT NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS misconception_taxonomy (
+  id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  curriculum_id     INT UNSIGNED NOT NULL,
+  code              VARCHAR(60) NOT NULL,
+  description       TEXT NOT NULL,
+  detection_pattern TEXT DEFAULT NULL,
+  remediation_hint  TEXT DEFAULT NULL,
+  UNIQUE KEY uq_misconception (curriculum_id, code),
+  CONSTRAINT fk_misc_curriculum FOREIGN KEY (curriculum_id) REFERENCES curriculum(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS bac_exercises (
+  id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  source_url      VARCHAR(500) NOT NULL,
+  source_label    VARCHAR(200) NOT NULL,
+  year            SMALLINT UNSIGNED NOT NULL,
+  session         ENUM('principale','controle') NOT NULL,
+  section         VARCHAR(30) NOT NULL,
+  exercise_number TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  statement_text  LONGTEXT NOT NULL,
+  correction_text LONGTEXT DEFAULT NULL,
+  notions_tags    JSON DEFAULT NULL,
+  difficulty      TINYINT UNSIGNED DEFAULT NULL,
+  is_verified     TINYINT(1) NOT NULL DEFAULT 0,
+  embedding_id    VARCHAR(100) DEFAULT NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_bac_year_section (year, section),
+  INDEX idx_bac_section (section)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- 16. CHAPTER QUIZZES
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS quiz_questions (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  chapter_id    INT NOT NULL,
+  question      TEXT NOT NULL,
+  options       JSON NOT NULL,
+  correct_index TINYINT NOT NULL,
+  explanation   TEXT NULL,
+  is_active     TINYINT NOT NULL DEFAULT 1,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_quiz_questions_chapter (chapter_id),
+  CONSTRAINT fk_quiz_questions_chapter FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NOT NULL,
+  chapter_id INT NOT NULL,
+  score      INT NOT NULL,
+  total      INT NOT NULL,
+  passed     TINYINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_quiz_attempts_user_chapter (user_id, chapter_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------------------------------------------
+-- 17. NOTIFICATIONS
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NOT NULL,
+  type       VARCHAR(40) NOT NULL,
+  title      VARCHAR(160) NOT NULL,
+  body       VARCHAR(400) NULL,
+  link       VARCHAR(160) NULL,
+  dedupe_key VARCHAR(120) NULL,
+  is_read    TINYINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_notif_user (user_id, is_read),
+  UNIQUE KEY uq_notif_dedupe (user_id, dedupe_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =============================================================
 --  Default admin account

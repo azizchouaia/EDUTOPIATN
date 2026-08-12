@@ -1,6 +1,6 @@
 import type { GradeCode, SectionCode } from "./academic"
 
-export type UserRole = "admin" | "teacher" | "student" | "parent"
+export type UserRole = "admin" | "teacher" | "student" | "parent" | "commercial"
 
 export interface User {
   id: number
@@ -9,6 +9,7 @@ export interface User {
   age: number | null
   email: string
   phone: string | null
+  user_code: string | null
   role: UserRole
   college: string | null
   year_of_study: string | null

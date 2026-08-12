@@ -145,11 +145,26 @@ async function sendPasswordResetEmail({ to, firstName, code, expiresInMinutes })
 }
 
 // ── Welcome email on registration ────────────────────────────────────────────
-async function sendWelcomeEmail({ to, firstName }) {
+async function sendWelcomeEmail({ to, firstName, userCode, role }) {
   if (!hasSmtpConfiguration()) {
-    console.log(`[mailer] Welcome email for ${to} (${firstName})`);
+    console.log(`[mailer] Welcome email for ${to} (${firstName}) — code: ${userCode}`);
     return { delivery: 'console' };
   }
+
+  // Code block: shown for students (to share with parents) and parents (own reference)
+  const codeBlock = userCode ? `
+    <div style="margin:24px 0;padding:20px 24px;border-radius:14px;background:#fdf6e3;border:2px solid #c9a84c;text-align:center;">
+      <p style="margin:0 0 8px;font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">
+        ${role === 'student' ? 'Votre identifiant élève' : role === 'parent' ? 'Votre identifiant parent' : 'Votre identifiant'}
+      </p>
+      <span style="font-size:28px;font-weight:800;letter-spacing:0.25em;color:#7d1022;font-family:'Courier New',monospace;">
+        ${userCode}
+      </span>
+      ${role === 'student' ? `
+      <p style="margin:10px 0 0;font-size:12px;color:#6b7280;">
+        Partagez ce code avec un parent pour qu'il puisse vous lier à son compte.
+      </p>` : ''}
+    </div>` : '';
 
   const bodyHtml = `
     <h2 style="margin:0 0 16px;color:#7d1022;font-size:22px;">
@@ -160,6 +175,8 @@ async function sendWelcomeEmail({ to, firstName }) {
       Votre compte a été créé avec succès. Nous sommes ravis de vous accueillir sur la plateforme
       d'apprentissage premium Edutopia.
     </p>
+
+    ${codeBlock}
 
     <p>Avec votre compte vous pouvez :</p>
     <ul style="padding-left:20px;line-height:2;">
@@ -186,11 +203,12 @@ async function sendWelcomeEmail({ to, firstName }) {
     `Bienvenue sur Edutopia, ${firstName} !`,
     '',
     'Votre compte a été créé avec succès.',
+    userCode ? `Votre identifiant : ${userCode}` : '',
     '',
     'Connectez-vous sur : ' + (process.env.FRONTEND_URL || 'http://localhost:5173'),
     '',
     'Edutopia Academy',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   const transporter = createTransporter();
   await transporter.sendMail({

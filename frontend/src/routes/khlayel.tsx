@@ -5,7 +5,7 @@ import {
   Dumbbell, Lightbulb, Loader2, Plus, BarChart2,
   MessageSquare, Sparkles, Trophy, AlertTriangle,
   CheckCircle2, BookMarked, FlaskConical, Paperclip, X, FileText,
-  Copy, Check, ArrowDown, ThumbsUp, ThumbsDown, RefreshCw, Trash2,
+  Copy, Check, ArrowDown, ThumbsUp, ThumbsDown, RefreshCw, Trash2, ChevronsRight,
 } from "lucide-react";
 import api, { API_ORIGIN } from "@/lib/api";
 import "katex/dist/katex.min.css";
@@ -401,14 +401,22 @@ function UserBubble({ content }: { content: string }) {
 }
 
 // ── Assistant card ────────────────────────────────────────────
+// Heuristic: response probably got cut off if it doesn't end with typical
+// closing punctuation (period, !, ?, closing bracket/paren, Arabic period, etc.)
+function looksLikeTruncated(content: string): boolean {
+  const trimmed = content.trimEnd();
+  return !/[.!?»)\]}।۔]$/.test(trimmed);
+}
+
 function AssistantCard({
-  msg, isLast, loading, onRegenerate, onFeedback,
+  msg, isLast, loading, onRegenerate, onFeedback, onContinue,
 }: {
   msg: Message;
   isLast: boolean;
   loading: boolean;
   onRegenerate: () => void;
   onFeedback: (rating: "up" | "down") => void;
+  onContinue: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const modeInfo = MODES.find(m => m.id === msg.mode) ?? MODES[0];
@@ -468,9 +476,21 @@ function AssistantCard({
               </>
             )}
             {isLast && !loading && (
-              <button onClick={onRegenerate} className="kh-action-btn" title="Régénérer la réponse">
-                <RefreshCw className="h-3.5 w-3.5" />
-              </button>
+              <>
+                <button onClick={onRegenerate} className="kh-action-btn" title="Régénérer la réponse">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                {looksLikeTruncated(msg.content) && (
+                  <button
+                    onClick={onContinue}
+                    className="kh-action-btn kh-action-continue"
+                    title="La réponse semble incomplète — continuer"
+                  >
+                    <ChevronsRight className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-semibold">Continuer</span>
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -905,6 +925,7 @@ function KhlayelPage() {
                       loading={loading}
                       onRegenerate={regenerate}
                       onFeedback={(rating) => sendFeedback(i, rating)}
+                      onContinue={() => sendMessage("Continuez.")}
                     />
                   )
               )

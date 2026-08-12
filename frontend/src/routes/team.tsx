@@ -8,9 +8,9 @@ export const Route = createFileRoute("/team")({
   head: () => ({
     meta: [
       { title: "Our Team — Edutopia" },
-      { name: "description", content: "Meet the team behind Edutopia — designers, developers and educators crafting a premium learning experience." },
+      { name: "description", content: "Découvrez l'équipe derrière Edutopia — designers, développeurs et éducateurs créant une expérience d'apprentissage premium." },
       { property: "og:title", content: "Our Team — Edutopia" },
-      { property: "og:description", content: "Meet the people behind Edutopia." },
+      { property: "og:description", content: "Découvrez les personnes derrière Edutopia." },
     ],
   }),
   component: TeamPage,
@@ -26,26 +26,26 @@ function TeamPage() {
     <>
       <section className="bg-gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 py-20 text-center">
-          <span className="text-xs uppercase tracking-[0.3em] text-gold font-semibold">People</span>
-          <h1 className="font-display text-5xl md:text-6xl font-bold mt-3">The Team Behind Edutopia</h1>
+          <span className="text-xs uppercase tracking-[0.3em] text-gold font-semibold">Notre équipe</span>
+          <h1 className="font-display text-5xl md:text-6xl font-bold mt-3">L'Équipe Edutopia</h1>
           <div className="gold-divider mx-auto my-6" />
           <p className="max-w-2xl mx-auto text-primary-foreground/80">
-            A small, passionate team of designers, developers and educators —
-            united by a single belief: learning should feel beautiful.
+            Une équipe passionnée de designers, développeurs et éducateurs —
+            unis par une conviction : l'apprentissage doit être beau.
           </p>
         </div>
       </section>
 
       <section className="container mx-auto px-4 py-20">
         {isLoading ? (
-          <div className="text-center text-muted-foreground">Loading team...</div>
+          <div className="text-center text-muted-foreground">Chargement de l'équipe...</div>
         ) : null}
 
         {!isLoading && team.length === 0 ? (
           <div className="rounded-3xl border border-border bg-card p-10 text-center shadow-card">
-            <h2 className="font-display text-3xl text-foreground">Team updates are coming soon</h2>
+            <h2 className="font-display text-3xl text-foreground">L'équipe arrive bientôt</h2>
             <p className="mt-3 text-muted-foreground">
-              The team module is live on the admin side. Add members there and they will appear here automatically.
+              Le module équipe est actif côté admin. Ajoutez des membres depuis l'interface admin et ils apparaîtront ici automatiquement.
             </p>
           </div>
         ) : null}

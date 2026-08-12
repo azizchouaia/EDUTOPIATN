@@ -108,8 +108,8 @@ function CoursesIndexPage() {
         {isSubscriptionBlocked ? (
           <SubscriptionGate
             resourceKey="courses"
-            title="Courses unlock after subscription activation"
-            description="The courses API now blocks access until the student has an active subscription. Subscribe first, then enter your activation code here to remove the blur and access the full catalog."
+            title="Les cours se débloquent après activation de l'abonnement"
+            description="L'accès aux cours est bloqué jusqu'à l'activation de l'abonnement. Abonnez-vous d'abord, puis entrez votre code d'activation pour débloquer le catalogue."
           />
         ) : needsAcademicTrack ? (
           <div className={`mx-auto max-w-3xl rounded-3xl border border-border bg-card p-10 text-center shadow-sm ${isRTL ? "text-right" : ""}`}>
