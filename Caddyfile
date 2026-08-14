@@ -1,0 +1,15 @@
+# Replace with your real domain — Caddy auto-fetches and renews a free
+# Let's Encrypt cert for it, no config needed beyond DNS pointing here.
+your-domain.com {
+    reverse_proxy app:5000
+    encode gzip
+}
+
+# ── No domain yet? ────────────────────────────────────────────
+# Comment out the block above and uncomment this one to serve plain
+# HTTP on the VM's IP while you sort out DNS. Swap back once you have
+# a domain — running production over bare HTTP long-term isn't advisable.
+#
+# :80 {
+#     reverse_proxy app:5000
+# }
