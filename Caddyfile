@@ -1,10 +1,25 @@
 # Replace with your real domain — Caddy auto-fetches and renews a free
 # Let's Encrypt cert for it, no config needed beyond DNS pointing here.
-your-domain.com {
-    reverse_proxy app:5000
+#your-domain.com {
+#    reverse_proxy app:5000
+#    encode gzip
+#}
+# your-domain.com {
+#     reverse_proxy app:5000
+#     encode gzip
+# }
+:80 {
+    handle /api/* {
+        reverse_proxy app:5000
+    }
+    handle /uploads/* {
+        reverse_proxy app:5000
+    }
+    handle {
+        reverse_proxy frontend:8787
+    }
     encode gzip
 }
-
 # ── No domain yet? ────────────────────────────────────────────
 # Comment out the block above and uncomment this one to serve plain
 # HTTP on the VM's IP while you sort out DNS. Swap back once you have

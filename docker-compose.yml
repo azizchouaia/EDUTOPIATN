@@ -1,18 +1,32 @@
 services:
   app:
-    build: .
-    image: edutopia-app:latest
+    build:
+      context: .
+      target: backend-runtime
+    image: edutopia-backend:latest
     restart: unless-stopped
     env_file:
       - ./backend/.env
     volumes:
       - uploads_data:/app/backend/uploads
     expose:
-      - "5000"          # not published to the host — only Caddy talks to it
+      - "5000"
     depends_on:
       mysql:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: .
+      target: frontend-runtime
+      args:
+        VITE_API_URL: "/api"
+    image: edutopia-frontend:latest
+    restart: unless-stopped
+    expose:
+      - "8787"
+    depends_on:
+      - app
   mysql:
     image: mysql:8.0
     restart: unless-stopped

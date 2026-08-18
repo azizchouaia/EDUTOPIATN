@@ -98,7 +98,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 // /app/frontend/dist — two levels up from this file (backend/src/app.js).
 // If ../../frontend/dist doesn't exist (e.g. local dev without a build),
 // this just silently serves nothing and falls through to the 404 handler.
-const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist');
+const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist', 'client');
 app.use(express.static(frontendDist));
 
 // SPA fallback: any GET that isn't /api/* or /uploads/* returns index.html
