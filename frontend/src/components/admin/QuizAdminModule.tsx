@@ -31,9 +31,57 @@ const MATH_CATEGORIES: Record<string, string[]> = {
   "Géométrie":  ["°", "∠", "⊥", "∥", "△", "□", "⊙", "∶", "∷"],
 };
 
+// LaTeX formula templates — label shown on button, latex inserted at cursor
+// Wrap with \( \) for inline or \[ \] for display block
+type LatexTemplate = { label: string; latex: string; title: string };
+
+const LATEX_TEMPLATES: LatexTemplate[] = [
+  // Intégrales
+  { label: "∫",        latex: "\\(\\int_{a}^{b} f(x)\\,dx\\)",          title: "Intégrale définie" },
+  { label: "∫∞",       latex: "\\(\\int_{-\\infty}^{+\\infty} f(x)\\,dx\\)", title: "Intégrale impropre" },
+  { label: "∮",        latex: "\\(\\oint_{C} f(z)\\,dz\\)",              title: "Intégrale de contour" },
+  // Sommes & Produits
+  { label: "Σ",        latex: "\\(\\sum_{k=0}^{n} a_k\\)",              title: "Somme" },
+  { label: "Σ∞",       latex: "\\(\\sum_{n=0}^{+\\infty} u_n\\)",       title: "Série" },
+  { label: "Π",        latex: "\\(\\prod_{k=1}^{n} a_k\\)",             title: "Produit" },
+  // Limites
+  { label: "lim",      latex: "\\(\\lim_{x \\to a} f(x)\\)",            title: "Limite en a" },
+  { label: "lim∞",     latex: "\\(\\lim_{x \\to +\\infty} f(x)\\)",     title: "Limite à +∞" },
+  { label: "lim 0⁺",   latex: "\\(\\lim_{x \\to 0^+} f(x)\\)",         title: "Limite à droite en 0" },
+  // Fractions & Dérivées
+  { label: "a/b",      latex: "\\(\\frac{a}{b}\\)",                      title: "Fraction" },
+  { label: "d/dx",     latex: "\\(\\frac{d}{dx} f(x)\\)",               title: "Dérivée" },
+  { label: "∂/∂x",     latex: "\\(\\frac{\\partial f}{\\partial x}\\)",  title: "Dérivée partielle" },
+  { label: "f''",      latex: "\\(f''(x)\\)",                            title: "Dérivée seconde" },
+  // Racines
+  { label: "√x",       latex: "\\(\\sqrt{x}\\)",                         title: "Racine carrée" },
+  { label: "ⁿ√x",      latex: "\\(\\sqrt[n]{x}\\)",                      title: "Racine n-ième" },
+  // Puissances & Exposants
+  { label: "eˣ",       latex: "\\(e^{x}\\)",                             title: "Exponentielle" },
+  { label: "eⁱˣ",      latex: "\\(e^{i\\theta}\\)",                      title: "Exponentielle complexe" },
+  { label: "xⁿ",       latex: "\\(x^{n}\\)",                             title: "Puissance" },
+  { label: "aₙ",       latex: "\\(a_{n}\\)",                             title: "Terme général" },
+  // Fonctions courantes
+  { label: "sin",      latex: "\\(\\sin(x)\\)",                          title: "Sinus" },
+  { label: "cos",      latex: "\\(\\cos(x)\\)",                          title: "Cosinus" },
+  { label: "tan",      latex: "\\(\\tan(x)\\)",                          title: "Tangente" },
+  { label: "ln",       latex: "\\(\\ln(x)\\)",                           title: "Logarithme naturel" },
+  { label: "log",      latex: "\\(\\log_{a}(x)\\)",                      title: "Logarithme base a" },
+  // Vecteurs
+  { label: "v⃗",        latex: "\\(\\vec{v}\\)",                          title: "Vecteur" },
+  { label: "AB⃗",       latex: "\\(\\overrightarrow{AB}\\)",              title: "Vecteur AB" },
+  { label: "|v|",      latex: "\\(\\|\\vec{v}\\|\\)",                    title: "Norme" },
+  // Équations bloc (display)
+  { label: "[∫]",      latex: "\\[\\int_{a}^{b} f(x)\\,dx = F(b) - F(a)\\]", title: "Formule Newton-Leibniz (bloc)" },
+  { label: "[Σ]",      latex: "\\[\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}\\]",  title: "Somme Gauss (bloc)" },
+  { label: "[lim]",    latex: "\\[\\lim_{n \\to +\\infty} u_n = L\\]",         title: "Limite (bloc)" },
+  { label: "[frac]",   latex: "\\[\\frac{a}{b} + \\frac{c}{d} = \\frac{ad+bc}{bd}\\]", title: "Fraction (bloc)" },
+];
+
 function MathKeyboard({ onInsert }: { onInsert: (s: string) => void }) {
   const [open, setOpen] = useState(false);
   const [cat, setCat] = useState("Grec");
+  const allCats = [...Object.keys(MATH_CATEGORIES), "Formules LaTeX"];
 
   return (
     <div className="relative">
@@ -50,10 +98,10 @@ function MathKeyboard({ onInsert }: { onInsert: (s: string) => void }) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-[480px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card shadow-elegant">
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-[560px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card shadow-elegant">
           {/* Category tabs */}
           <div className="flex flex-wrap gap-1 border-b border-border p-2">
-            {Object.keys(MATH_CATEGORIES).map(c => (
+            {allCats.map(c => (
               <button
                 key={c}
                 type="button"
@@ -65,20 +113,45 @@ function MathKeyboard({ onInsert }: { onInsert: (s: string) => void }) {
               </button>
             ))}
           </div>
-          {/* Symbol grid */}
-          <div className="flex flex-wrap gap-1 p-3">
-            {(MATH_CATEGORIES[cat] ?? []).map(sym => (
-              <button
-                key={sym}
-                type="button"
-                onClick={() => onInsert(sym)}
-                className="grid h-9 w-9 place-items-center rounded-md border border-border bg-background font-mono text-base text-foreground transition-all hover:border-bordeaux hover:bg-bordeaux/10 hover:text-bordeaux active:scale-95"
-                title={sym}
-              >
-                {sym}
-              </button>
-            ))}
-          </div>
+
+          {cat === "Formules LaTeX" ? (
+            /* LaTeX template grid */
+            <div className="p-3">
+              <p className="mb-2 text-[11px] text-muted-foreground">
+                Insère une formule complète — utilise <code className="bg-muted px-1 rounded text-[10px]">\( \)</code> pour inline, <code className="bg-muted px-1 rounded text-[10px]">\[ \]</code> pour bloc centré.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {LATEX_TEMPLATES.map(t => (
+                  <button
+                    key={t.label}
+                    type="button"
+                    onClick={() => onInsert(t.latex)}
+                    title={t.title}
+                    className="flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground transition-all hover:border-bordeaux hover:bg-bordeaux/10 hover:text-bordeaux active:scale-95"
+                  >
+                    {t.label}
+                    <span className="text-[10px] text-muted-foreground font-sans">{t.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Symbol grid */
+            <div className="flex flex-wrap gap-1 p-3">
+              {(MATH_CATEGORIES[cat] ?? []).map(sym => (
+                <button
+                  key={sym}
+                  type="button"
+                  onClick={() => onInsert(sym)}
+                  className="grid h-9 w-9 place-items-center rounded-md border border-border bg-background font-mono text-base text-foreground transition-all hover:border-bordeaux hover:bg-bordeaux/10 hover:text-bordeaux active:scale-95"
+                  title={sym}
+                >
+                  {sym}
+                </button>
+              ))}
+            </div>
+          )}
+
           <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
             Clique sur un symbole → inséré à la position du curseur dans le champ actif
           </p>

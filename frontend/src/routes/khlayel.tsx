@@ -5,7 +5,8 @@ import {
   Dumbbell, Lightbulb, Loader2, Plus, BarChart2,
   MessageSquare, Sparkles, Trophy, AlertTriangle,
   CheckCircle2, BookMarked, FlaskConical, Paperclip, X, FileText,
-  Copy, Check, ArrowDown, ThumbsUp, ThumbsDown, RefreshCw, Trash2, ChevronsRight,
+  Copy, Check, ArrowDown, ThumbsUp, ThumbsDown, RefreshCw, Trash2, ChevronsRight, History,
+  Compass, Maximize2, Minimize2,
 } from "lucide-react";
 import api, { API_ORIGIN } from "@/lib/api";
 import "katex/dist/katex.min.css";
@@ -97,10 +98,14 @@ function mdToHtml(text: string): string {
   const pushD = (e: string) => { math.push("D:" + e); return `\x00M${math.length - 1}\x00`; };
   const pushI = (e: string) => { math.push("I:" + e); return `\x00M${math.length - 1}\x00`; };
   let src = text
-    // \[...\]  display  (multiline)
+    // \[...\]  display  (multiline) — closed form
     .replace(/\\\[([\s\S]+?)\\\]/g, (_m, e) => pushD(e))
-    // \(...\)  inline
-    .replace(/\\\((.+?)\\\)/gs,     (_m, e) => pushI(e))
+    // \[...  unclosed display block (truncated response)
+    .replace(/\\\[([\s\S]+?)$/gm, (_m, e) => pushD(e.trim()))
+    // \(...\)  inline — closed form first
+    .replace(/\\\((.+?)\\\)/gs, (_m, e) => pushI(e))
+    // \(...  unclosed inline (truncated response) — render to end of line
+    .replace(/\\\((.+?)$/gm, (_m, e) => pushI(e.trim()))
     // $$...$$  display
     .replace(/\$\$([^$]+)\$\$/g,    (_m, e) => pushD(e))
     // $...$    inline
@@ -310,6 +315,54 @@ async function pdfToImageIfScanned(file: File): Promise<File | null> {
   const blob = await new Promise<Blob | null>(res => out.toBlob(res, "image/jpeg", 0.82));
   if (!blob) return null;
   return new File([blob], file.name.replace(/\.pdf$/i, "") + ".jpg", { type: "image/jpeg" });
+}
+
+// ── Geometry keyword detector ────────────────────────────────
+const GEO_KEYWORDS = [
+  "triangle","cercle","carré","rectangle","losange","trapèze","parallélogramme",
+  "polygone","droite","segment","angle","bissectrice","médiatrice","médiane","hauteur",
+  "perpendiculaire","parallèle","symétrie","translation","rotation","homothétie",
+  "vecteur","plan","repère","abscisse","ordonnée","coordonnées","géométrie",
+  "périmètre","aire","surface","volume","rayon","diamètre","corde","tangente",
+  "inscrit","circonscrit","hypoténuse","pythagore","thalès","espace","coplanaire",
+  "مثلث","دائرة","مستطيل","هندسة","زاوية","متوازي","قطر","نصف قطر",
+];
+function looksLikeGeometry(text: string): boolean {
+  const lower = text.toLowerCase();
+  return GEO_KEYWORDS.some(k => lower.includes(k));
+}
+
+// ── GeoGebra panel ────────────────────────────────────────────
+function GeoGebraPanel({ onClose, fullscreen, onToggleFullscreen }: {
+  onClose: () => void;
+  fullscreen: boolean;
+  onToggleFullscreen: () => void;
+}) {
+  return (
+    <div className={`kh-geo-panel ${fullscreen ? "kh-geo-panel-full" : ""}`}>
+      <div className="kh-geo-toolbar">
+        <div className="flex items-center gap-2">
+          <Compass className="h-4 w-4 text-gold" />
+          <span className="text-sm font-bold text-white">Espace Géométrie</span>
+          <span className="text-[10px] text-white/40 hidden sm:inline">GeoGebra</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={onToggleFullscreen} className="kh-geo-btn" title={fullscreen ? "Réduire" : "Plein écran"}>
+            {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+          <button onClick={onClose} className="kh-geo-btn" title="Fermer">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <iframe
+        src="https://www.geogebra.org/geometry?lang=fr"
+        className="kh-geo-iframe"
+        title="GeoGebra Géométrie"
+        allow="fullscreen"
+      />
+    </div>
+  );
 }
 
 // ── Relative date for the sidebar ─────────────────────────────
@@ -532,6 +585,10 @@ function KhlayelPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [converting, setConverting] = useState(false);
   const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [geoOpen, setGeoOpen] = useState(false);
+  const [geoFull, setGeoFull] = useState(false);
+  const [geoSuggested, setGeoSuggested] = useState(false);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -784,6 +841,16 @@ function KhlayelPage() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
+  // Auto-open GeoGebra when geometry is detected in the last assistant reply
+  useEffect(() => {
+    if (geoOpen || geoSuggested) return;
+    const lastAssist = [...messages].reverse().find(m => m.role === "assistant" && !m.streaming);
+    if (lastAssist && looksLikeGeometry(lastAssist.content)) {
+      setGeoSuggested(true);
+      setGeoOpen(true); // open automatically
+    }
+  }, [messages, geoOpen, geoSuggested]);
+
   const hasMessages = messages.length > 0;
   const currentModeInfo = MODES.find(m => m.id === lastDetectedMode) ?? MODES[0];
   const lastAssistantIndex = (() => {
@@ -881,8 +948,76 @@ function KhlayelPage() {
         </div>
       </aside>
 
+      {/* ── Mobile history drawer overlay ── */}
+      {drawerOpen && (
+        <div className="kh-drawer-overlay" onClick={() => setDrawerOpen(false)} aria-hidden="true" />
+      )}
+
+      {/* ── Mobile history drawer ── */}
+      {drawerOpen && (
+        <div className="kh-drawer">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-xl bg-gold/20 grid place-items-center ring-1 ring-gold/30">
+                <BrainCircuit className="h-4 w-4 text-gold" />
+              </div>
+              <p className="font-display font-bold text-sm text-white">Khlayel</p>
+            </div>
+            <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <button onClick={() => { startNew(); setDrawerOpen(false); }} className="kh-new-btn mb-3">
+            <Plus className="h-4 w-4" /> Nouvelle conversation
+          </button>
+          {conversations.length > 0 && (
+            <div className="space-y-1">
+              <p className="px-1 mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">Historique</p>
+              {conversations.map(c => {
+                const mi = MODES.find(m => m.id === c.mode) ?? MODES[0];
+                return (
+                  <div key={c.id} role="button" tabIndex={0}
+                    onClick={() => { void loadConversation(c); setDrawerOpen(false); }}
+                    onKeyDown={e => { if (e.key === "Enter") { void loadConversation(c); setDrawerOpen(false); } }}
+                    className={`kh-conv-item w-full mb-1 ${c.id === conversationId ? "kh-conv-active" : ""}`}
+                  >
+                    <span className="kh-conv-mode" style={{ color: mi.color, backgroundColor: mi.color + "26" }}>{mi.icon}</span>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="truncate text-xs text-white/70 leading-tight">{c.title || "Conversation"}</p>
+                      <p className="mt-0.5 text-[10px] text-white/30">{relativeDate(c.updated_at ?? c.created_at)}</p>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); void deleteConversation(c.id); }} className="kh-conv-trash" title="Supprimer">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── GeoGebra panel ── */}
+      {geoOpen && (
+        <GeoGebraPanel
+          onClose={() => { setGeoOpen(false); setGeoFull(false); }}
+          fullscreen={geoFull}
+          onToggleFullscreen={() => setGeoFull(f => !f)}
+        />
+      )}
+
       {/* ── Main area ── */}
       <main className="kh-main">
+        {/* Mobile top bar — visible only on small screens */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border/40 md:hidden">
+          <button onClick={() => setDrawerOpen(true)} className="kh-mobile-history-btn">
+            <History className="h-3.5 w-3.5" /> Historique
+          </button>
+          <button onClick={startNew} className="flex items-center gap-1.5 rounded-full bg-bordeaux/10 border border-bordeaux/20 px-3 py-1.5 text-xs font-semibold text-bordeaux">
+            <Plus className="h-3.5 w-3.5" /> Nouveau
+          </button>
+        </div>
+
         {/* Messages */}
         <div className="kh-messages" ref={messagesRef} onScroll={onScroll}>
           <div className="kh-thread">
@@ -958,6 +1093,23 @@ function KhlayelPage() {
         {/* Input area */}
         <div className="kh-input-area">
           <div className="kh-thread">
+            {/* Geometry suggestion banner */}
+            {geoSuggested && !geoOpen && (
+              <div className="kh-geo-suggest animate-kh-in">
+                <Compass className="h-4 w-4 text-gold flex-shrink-0" />
+                <span className="text-xs">Exercice de géométrie détecté — ouvre l'espace dessin ?</span>
+                <button
+                  onClick={() => { setGeoOpen(true); setGeoSuggested(false); }}
+                  className="ml-auto text-xs font-semibold text-bordeaux underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
+                >
+                  Ouvrir GeoGebra
+                </button>
+                <button onClick={() => setGeoSuggested(false)} className="p-0.5 opacity-50 hover:opacity-100">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+
             {/* File preview */}
             {selectedFile && (
               <div className="kh-file-preview">
@@ -996,6 +1148,15 @@ function KhlayelPage() {
                 disabled={loading}
                 className="kh-textarea"
               />
+
+              {/* Geometry button */}
+              <button
+                onClick={() => { setGeoOpen(o => !o); setGeoSuggested(false); }}
+                className={`kh-attach-btn ${geoOpen ? "kh-geo-btn-active" : ""}`}
+                title="Ouvrir l'espace géométrie (GeoGebra)"
+              >
+                <Compass className="h-4 w-4" />
+              </button>
 
               {/* File upload button */}
               <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={pickFile} className="hidden" />

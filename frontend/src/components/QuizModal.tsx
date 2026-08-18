@@ -3,6 +3,29 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, X, CheckCircle2, XCircle, Trophy, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+
+// Render text that may contain \(...\) inline math or \[...\] display math
+function renderMath(text: string): string {
+  // Display math \[ ... \]
+  let result = text.replace(/\\\[([\s\S]+?)\\\]/g, (_m, expr) => {
+    try { return katex.renderToString(expr.trim(), { displayMode: true, throwOnError: false }); }
+    catch { return _m; }
+  });
+  // Inline math \( ... \)
+  result = result.replace(/\\\((.+?)\\\)/gs, (_m, expr) => {
+    try { return katex.renderToString(expr.trim(), { displayMode: false, throwOnError: false }); }
+    catch { return _m; }
+  });
+  return result;
+}
+
+function MathText({ text }: { text: string }) {
+  const html = renderMath(text);
+  if (html === text) return <>{text}</>;
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 interface QuizQuestion {
   id: number;
@@ -103,7 +126,7 @@ export function QuizModal({
                   const r = resultFor(q.id);
                   return (
                     <div key={q.id} className="rounded-xl border border-border p-4">
-                      <p className="text-sm font-medium text-foreground">{i + 1}. {q.question}</p>
+                      <p className="text-sm font-medium text-foreground">{i + 1}. <MathText text={q.question} /></p>
                       <div className="mt-2 space-y-1.5">
                         {q.options.map((opt, idx) => {
                           const isCorrect = r?.correct_index === idx;
@@ -113,12 +136,12 @@ export function QuizModal({
                               isCorrect ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                               : isChosen ? "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300" : "text-muted-foreground"}`}>
                               {isCorrect ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : isChosen ? <XCircle className="h-3.5 w-3.5 shrink-0" /> : <span className="h-3.5 w-3.5 shrink-0" />}
-                              {opt}
+                              <MathText text={opt} />
                             </div>
                           );
                         })}
                       </div>
-                      {r?.explanation && <p className="mt-2 text-xs text-muted-foreground italic">💡 {r.explanation}</p>}
+                      {r?.explanation && <p className="mt-2 text-xs text-muted-foreground italic">💡 <MathText text={r.explanation} /></p>}
                     </div>
                   );
                 })}
@@ -129,7 +152,7 @@ export function QuizModal({
             <div className="space-y-6">
               {data!.questions.map((q, i) => (
                 <div key={q.id}>
-                  <p className="text-sm font-medium text-foreground">{i + 1}. {q.question}</p>
+                  <p className="text-sm font-medium text-foreground">{i + 1}. <MathText text={q.question} /></p>
                   <div className="mt-2.5 grid gap-2">
                     {q.options.map((opt, idx) => {
                       const selected = answers[q.id] === idx;
@@ -143,7 +166,7 @@ export function QuizModal({
                           <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-xs font-bold ${selected ? "border-bordeaux bg-bordeaux text-white" : "border-border"}`}>
                             {String.fromCharCode(65 + idx)}
                           </span>
-                          {opt}
+                          <MathText text={opt} />
                         </button>
                       );
                     })}

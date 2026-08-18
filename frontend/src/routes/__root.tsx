@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { LanguageProvider } from "@/lib/i18n";
 
 const queryClient = new QueryClient();
@@ -82,9 +83,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith("/admin");
-  // Khlayel is a full-height chat — a footer below it just creates dead scroll space
+  const isAdminRoute   = location.pathname.startsWith("/admin");
   const isKhlayelRoute = location.pathname.startsWith("/khlayel");
+  // Hide bottom nav on pages with their own full-screen chrome
+  const hideBottomNav  = isAdminRoute || isKhlayelRoute;
 
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ""}>
@@ -98,6 +100,7 @@ function RootComponent() {
               </div>
             </main>
             {!isAdminRoute && !isKhlayelRoute && <SiteFooter />}
+            {!hideBottomNav && <MobileBottomNav />}
           </div>
           <Toaster richColors position="top-right" />
         </QueryClientProvider>

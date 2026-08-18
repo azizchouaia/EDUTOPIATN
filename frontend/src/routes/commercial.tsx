@@ -93,6 +93,22 @@ function CommercialLayout() {
             </div>
           </section>
 
+          {/* Mobile horizontal module tabs — hidden on xl (sidebar takes over) */}
+          <div className="commercial-mobile-tabs xl:hidden">
+            {COMMERCIAL_MODULES.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                activeOptions={{ exact: item.exact ?? false }}
+                activeProps={{ className: "commercial-mobile-tab commercial-mobile-tab-active" }}
+                className="commercial-mobile-tab"
+              >
+                <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
           <Outlet />
         </div>
 
