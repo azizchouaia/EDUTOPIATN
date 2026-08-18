@@ -7,9 +7,7 @@
  */
 
 const db   = require('../config/db');
-const Groq = require('groq-sdk');
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const llm = require('../utils/llm');
 
 const QUIZ_SIZE  = Number(process.env.QUIZ_SIZE || 10);   // questions served per attempt
 const PASS_RATIO = Number(process.env.QUIZ_PASS_RATIO || 0.7); // 70% → 7/10
@@ -209,30 +207,61 @@ Règles :
 Réponds UNIQUEMENT avec un JSON valide, sans texte autour, au format :
 {"questions":[{"question":"...","options":["A","B","C","D"],"correct_index":0,"explanation":"..."}]}`;
 
-  try {
-    const completion = await groq.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 3000,
-      temperature: 0.4,
-      response_format: { type: 'json_object' },
+try {
+  const result = await llm.chatOnce({
+    system: 'Tu es un générateur de QCM pédagogique expert.',
+    history: [],
+    userText: prompt,
+    model: llm.modelFor('reason'),
+    maxTokens: 3000,
+    temperature: 0.4,
+  });
+
+  const raw = result.text || '{}';
+
+  // Remove markdown code fences if the model adds them
+  const cleanRaw = raw
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  const parsed = JSON.parse(cleanRaw);
+
+  const questions = (parsed.questions || [])
+    .filter(
+      q =>
+        q &&
+        typeof q.question === 'string' &&
+        Array.isArray(q.options) &&
+        q.options.length === 4 &&
+        [0, 1, 2, 3].includes(Number(q.correct_index))
+    )
+    .map(q => ({
+      question: String(q.question).trim(),
+      options: q.options.map(o => String(o).trim()),
+      correct_index: Number(q.correct_index),
+      explanation: q.explanation
+        ? String(q.explanation).trim()
+        : '',
+    }));
+
+  if (questions.length === 0) {
+    return res.status(502).json({
+      message: 'Génération vide — réessaie.',
     });
-    const raw = completion.choices[0]?.message?.content ?? '{}';
-    const parsed = JSON.parse(raw);
-    const questions = (parsed.questions || [])
-      .filter(q => q && Array.isArray(q.options) && q.options.length === 4 && [0, 1, 2, 3].includes(Number(q.correct_index)))
-      .map(q => ({
-        question: String(q.question).trim(),
-        options: q.options.map(o => String(o).trim()),
-        correct_index: Number(q.correct_index),
-        explanation: q.explanation ? String(q.explanation).trim() : '',
-      }));
-    if (questions.length === 0) return res.status(502).json({ message: 'Génération vide — réessaie.' });
-    res.json({ questions });
-  } catch (err) {
-    console.error('[quiz] generation failed:', err.message);
-    res.status(502).json({ message: 'La génération du quiz a échoué. Réessaie.' });
   }
+
+  res.json({ questions });
+} catch (err) {
+  console.error(
+    '[quiz] generation failed:',
+    err.message
+  );
+
+  res.status(502).json({
+    message: 'La génération du quiz a échoué. Réessaie.',
+  });
+}
 }
 
 // ── ADMIN: extract QCM from a PDF with Khlayel ─────────────────────────────
@@ -279,7 +308,13 @@ Réponds UNIQUEMENT avec ce JSON, sans texte autour :
         system: systemPrompt,
         history: [],
         userText,
-        attachments: [{ kind: 'document', mime: 'application/pdf', base64 }],
+        attachments: [
+          {
+            kind: 'pdf',
+            mime: 'application/pdf',
+            base64,
+          },
+        ],
         model: llm.modelFor('light'),
         maxTokens: 4096,
         temperature: 0.3,

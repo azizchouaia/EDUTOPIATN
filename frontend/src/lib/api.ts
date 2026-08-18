@@ -5,7 +5,7 @@ import axios from "axios"
 const API_ORIGIN = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:5000"
 
 const api = axios.create({
-  baseURL: `${API_ORIGIN}/api`,
+  baseURL: API_ORIGIN,
   headers: { "Content-Type": "application/json" },
 })
 

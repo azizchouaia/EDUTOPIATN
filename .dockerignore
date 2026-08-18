@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!backend/.env.production.example
+backend/uploads
+.git
+.gitignore
+*.md
+.tanstack
+.vscode
+npm-debug.log

@@ -1,5 +1,9 @@
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-process.env.ANTHROPIC_DISABLE_TELEMETRY = '1'; // suppress SDK telemetry noise
+require('dotenv').config({
+  path: require('path').join(__dirname, '..', '.env')
+});
+
+console.log('ENV FILE:', require('path').join(__dirname, '..', '.env'));
+console.log('ALLOWED_ORIGINS:', process.env.ALLOWED_ORIGINS);process.env.ANTHROPIC_DISABLE_TELEMETRY = '1'; // suppress SDK telemetry noise
 require('express-async-errors'); // patches Express 4 so rejected promises in async route handlers reach the error middleware
 const path = require('path');
 const express = require('express');
@@ -88,6 +92,22 @@ app.use('/api/notifications', notificationRoutes);
 
 // ── Health check ────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+// ── Serve the built frontend (single-image deploy) ──────────
+// In the Docker image, the frontend's `dist/` is copied to
+// /app/frontend/dist — two levels up from this file (backend/src/app.js).
+// If ../../frontend/dist doesn't exist (e.g. local dev without a build),
+// this just silently serves nothing and falls through to the 404 handler.
+const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist', 'client');
+app.use(express.static(frontendDist));
+
+// SPA fallback: any GET that isn't /api/* or /uploads/* returns index.html
+// so client-side routing (TanStack Router) can take over.
+app.get(/^(?!\/api|\/uploads).*/, (_req, res, next) => {
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) next(); // no build present (e.g. local dev) — fall through to 404
+  });
+});
 
 // ── 404 handler ─────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ message: 'Route not found' }));
