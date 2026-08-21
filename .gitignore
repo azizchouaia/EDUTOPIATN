@@ -26,4 +26,4 @@ Thumbs.db
 backend/uploads/**
 !backend/uploads/
 !backend/uploads/*/
-!backend/uploads/**/.gitkeep
+!backend/uploads/**/.gitkeepbuild.log

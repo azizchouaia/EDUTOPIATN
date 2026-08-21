@@ -333,7 +333,7 @@ async function streamChat(body: FormData | Record<string, unknown>, handlers: St
   const isForm = body instanceof FormData;
   let res: Response;
   try {
-    res = await fetch(`${API_ORIGIN}/api/ai/math-chat?stream=1`, {
+    res = await fetch(`${API_ORIGIN}/ai/math-chat?stream=1`, {
       method: "POST",
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

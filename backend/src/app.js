@@ -52,7 +52,15 @@ const corsOptions = {
 // crossOriginResourcePolicy is relaxed because /uploads (images, avatars, PDFs,
 // videos) is served from this API but rendered on a different origin (the frontend).
 app.use(compression()); // gzip all text responses — cuts bandwidth 60-80%
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "frame-src": ["'self'", "https://www.youtube.com", "https://www.youtube-nocookie.com"],
+    },
+  },
+}));
 app.use(cors(corsOptions));
 app.use(express.json());
 

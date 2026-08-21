@@ -8,7 +8,7 @@
 #     reverse_proxy app:5000
 #     encode gzip
 # }
-:80 {
+edutopia-tun.com, www.edutopia-tun.com {
     handle /api/* {
         reverse_proxy app:5000
     }
